@@ -49,8 +49,16 @@ export interface TurnInputClient {
   document_id?: string;
 }
 
-export function turn(sessionId: string, input: TurnInputClient): Promise<TurnResponse> {
-  return jsonFetch("/api/turn", { method: "POST", body: JSON.stringify({ session_id: sessionId, input }) });
+export function turn(
+  sessionId: string,
+  input: TurnInputClient,
+  signal?: AbortSignal
+): Promise<TurnResponse> {
+  return jsonFetch("/api/turn", {
+    method: "POST",
+    body: JSON.stringify({ session_id: sessionId, input }),
+    signal,
+  });
 }
 
 // SSE streaming variant — callbacks fire as events arrive.

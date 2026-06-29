@@ -54,10 +54,21 @@ const config: Config = {
           "70%": { boxShadow: "0 0 0 16px rgba(220,38,38,0)" },
           "100%": { boxShadow: "0 0 0 0 rgba(220,38,38,0)" },
         },
+        "pulse-ring-brand": {
+          "0%": { boxShadow: "0 0 0 0 rgba(22,49,91,.35)" },
+          "70%": { boxShadow: "0 0 0 22px rgba(22,49,91,0)" },
+          "100%": { boxShadow: "0 0 0 0 rgba(22,49,91,0)" },
+        },
+        rise: {
+          "0%": { opacity: "0", transform: "translateY(40px)" },
+          "100%": { opacity: "1", transform: "translateY(0)" },
+        },
       },
       animation: {
         "card-in": "card-in .22s ease-out both",
         "pulse-ring": "pulse-ring 1.4s ease-out infinite",
+        "pulse-ring-brand": "pulse-ring-brand 1.6s ease-out infinite",
+        rise: "rise .28s cubic-bezier(.16,1,.3,1) both",
       },
     },
   },

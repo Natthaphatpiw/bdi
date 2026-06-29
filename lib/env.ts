@@ -21,6 +21,9 @@ export const env = {
   runpodEndpointId: get("RUNPOD_ENDPOINT_ID"),
   runpodApiKey: get("RUNPOD_API_KEY"),
   runpodAdapter: get("RUNPOD_PRESCREEN_ADAPTER", "prescreen"),
+  // Max wait for the 27B before falling back to mock+rails. Must stay well under
+  // the serverless function limit so /api/turn never 504s on a RunPod cold start.
+  runpodTimeoutMs: parseInt(get("RUNPOD_TIMEOUT_MS", "20000"), 10),
 
   // Neo4j
   neo4jUri: get("NEO4J_URI"),

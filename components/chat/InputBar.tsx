@@ -1,7 +1,8 @@
 "use client";
 import { useEffect, useRef } from "react";
-import { Mic, Paperclip, Send } from "lucide-react";
+import { Mic, Plus, Send, Square } from "lucide-react";
 import { IconButton } from "@/components/ui/IconButton";
+import { cn } from "@/lib/cn";
 
 export function InputBar({
   value,
@@ -9,15 +10,19 @@ export function InputBar({
   onSend,
   onMic,
   onAttach,
+  onStop,
   disabled,
-  placeholder = "พิมพ์คำถาม…",
+  sending,
+  placeholder = "พิมพ์ข้อความ…",
 }: {
   value: string;
   onChange: (v: string) => void;
   onSend: () => void;
   onMic: () => void;
   onAttach?: () => void;
+  onStop?: () => void;
   disabled?: boolean;
+  sending?: boolean;
   placeholder?: string;
 }) {
   const ref = useRef<HTMLTextAreaElement | null>(null);
@@ -30,13 +35,13 @@ export function InputBar({
     el.style.height = Math.min(el.scrollHeight, 128) + "px";
   }, [value]);
 
-  const canSend = value.trim().length > 0 && !disabled;
+  const canSend = value.trim().length > 0 && !disabled && !sending;
 
   return (
     <div className="sticky bottom-0 z-20 flex items-end gap-2 border-t border-hairline bg-surface p-2 pb-safe">
       {onAttach && (
         <IconButton
-          icon={<Paperclip className="h-5 w-5" aria-hidden="true" />}
+          icon={<Plus className="h-5 w-5" aria-hidden="true" />}
           label="แนบเอกสาร"
           tone="neutral"
           onClick={onAttach}
@@ -63,15 +68,29 @@ export function InputBar({
         label="พูด"
         tone="brand"
         onClick={onMic}
-        disabled={disabled}
+        disabled={disabled || sending}
       />
-      <IconButton
-        icon={<Send className="h-5 w-5" aria-hidden="true" />}
-        label="ส่ง"
-        tone="brand"
-        onClick={onSend}
-        disabled={!canSend}
-      />
+      {sending ? (
+        <button
+          type="button"
+          aria-label="หยุด"
+          onClick={onStop}
+          className={cn(
+            "grid h-11 w-11 shrink-0 place-items-center rounded-full bg-brand text-white",
+            "transition-transform active:scale-95"
+          )}
+        >
+          <Square className="h-4 w-4 fill-current" aria-hidden="true" />
+        </button>
+      ) : (
+        <IconButton
+          icon={<Send className="h-5 w-5" aria-hidden="true" />}
+          label="ส่ง"
+          tone="brand"
+          onClick={onSend}
+          disabled={!canSend}
+        />
+      )}
     </div>
   );
 }

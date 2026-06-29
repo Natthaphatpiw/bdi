@@ -162,7 +162,7 @@ export interface PrescreenResult {
   rails_applied: string[];
   safety_note: string;
   usage?: unknown;
-  source: "runpod" | "mock";
+  source: "runpod" | "gemini" | "mock";
 }
 
 // ---- facilities ----

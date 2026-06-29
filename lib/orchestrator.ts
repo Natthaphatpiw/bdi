@@ -26,7 +26,7 @@ import type {
   Intent,
   BenefitCard,
   EvidenceCard,
-  SafetyCard,
+  PrescreenResult,
 } from "./types";
 
 const CURRENT_YEAR = new Date().getFullYear();
@@ -55,7 +55,9 @@ export interface TurnResult {
 }
 
 // ---- 1) NLU: extract structured understanding -------------------------------
-async function extractUnderstanding(ctx: TurnContext): Promise<Understood> {
+async function extractUnderstanding(
+  ctx: TurnContext
+): Promise<{ u: Understood; freshSymptoms: string[] }> {
   const base: Understood = { ...ctx.priorSlots };
   if (ctx.profile.scheme && !base.scheme) base.scheme = ctx.profile.scheme;
   if (ctx.profile.birth_year && !base.age) base.age = CURRENT_YEAR - ctx.profile.birth_year;
@@ -75,12 +77,17 @@ async function extractUnderstanding(ctx: TurnContext): Promise<Understood> {
 }`;
   const extracted = await geminiJson<Partial<Understood>>(prompt, {}, { temperature: 0.1 });
 
+  // symptoms newly introduced THIS turn (not carried over) — drives whether we
+  // need to (re)run the 27B prescreen.
+  const priorSet = new Set(base.symptoms ?? []);
+  const freshSymptoms = (extracted.symptoms ?? []).filter((s) => s && !priorSet.has(s));
+
   const merged: Understood = { ...base, ...stripEmpty(extracted) };
   // keep prior symptoms ∪ new
   const sym = [...new Set([...(base.symptoms ?? []), ...(extracted.symptoms ?? [])])].filter(Boolean);
   if (sym.length) merged.symptoms = sym;
   if (!merged.intent) merged.intent = inferIntent(ctx.text, merged);
-  return merged;
+  return { u: merged, freshSymptoms };
 }
 
 function stripEmpty<T extends Record<string, unknown>>(o: T): Partial<T> {
@@ -126,108 +133,159 @@ function buildAttrs(u: Understood, profile: Profile): Record<string, unknown> {
   return attrs;
 }
 
-// ---- main -------------------------------------------------------------------
-export async function runTurn(ctx: TurnContext): Promise<TurnResult> {
+// ---- main (progressive) -----------------------------------------------------
+// `emit` fires for `understood` and for each card the moment its tool finishes,
+// so the UI fills in live (ChatGPT-style). Cards are re-pinned to canonical order
+// client-side (CardStack), so streaming arrival order doesn't matter.
+export type StreamEmit = (type: "understood" | "card", data: unknown) => void;
+const NOOP_EMIT: StreamEmit = () => {};
+
+export async function runTurnStream(
+  ctx: TurnContext,
+  emit: StreamEmit = NOOP_EMIT
+): Promise<TurnResult> {
   const queries_run: string[] = [];
   const citations: { title: string; url: string; publisher: string }[] = [];
   const ruleTraces: unknown[] = [];
+  const cards: Card[] = [];
+  const push = (card: Card) => {
+    cards.push(card);
+    emit("card", card);
+  };
 
-  // (1) deterministic safety pre-check
+  // (1) deterministic safety pre-check (instant)
   const pre = safetyPreCheck(ctx.text);
 
   // (2) NLU
-  const u = await extractUnderstanding(ctx);
+  const { u, freshSymptoms } = await extractUnderstanding(ctx);
+  emit("understood", u);
   const scheme = u.scheme as Scheme | undefined;
   const attrs = buildAttrs(u, ctx.profile);
 
-  const cards: Card[] = [];
-  let emergencyCard: SafetyCard | undefined = pre.card;
+  if (pre.card) push(pre.card);
 
-  // (3) tools in parallel
-  const wantSymptom = (u.intent === "symptom_triage" || (u.symptoms?.length ?? 0) > 0);
+  // Only (re)run the 27B when THIS turn brings new symptoms (slot answers skip it).
+  const wantSymptom = freshSymptoms.length > 0;
   const symptomsText = (u.symptoms ?? []).join(" ") + " " + ctx.text;
 
-  const [prescreen, services, benefits, facilities, comorbid, chunks, docChunks] = await Promise.all([
-    wantSymptom ? runPrescreen({ patientCase: buildCase(u, ctx.profile, ctx.text), symptomsText }) : Promise.resolve(null),
-    scheme ? servicesForScheme(scheme) : Promise.resolve([]),
-    scheme ? benefitsForScheme(scheme) : Promise.resolve([]),
-    scheme ? searchFacilities({ scheme, area: u.area, conditionId: u.condition_hint }) : Promise.resolve([]),
-    u.condition_hint && scheme ? comorbidityFor(condIdFromHint(u.condition_hint), scheme) : Promise.resolve([]),
-    retrieveKgChunks(ctx.text, 4),
-    ctx.hasDoc ? retrieveUserDocs(ctx.text, ctx.userId, 4) : Promise.resolve([]),
-  ]);
+  // captured for the post-barrier synthesis
+  let prescreen: PrescreenResult | null = null;
+  let benefitCard: BenefitCard | null = null;
+  let hasFacility = false;
 
-  if (wantSymptom) queries_run.push("prescreen(27B)+rails");
-  if (scheme) queries_run.push(`R1 services(${scheme})`, `R2 benefits(${scheme})`, `facility_match(${scheme})`);
-  if (chunks.length) queries_run.push("graphrag_retrieve");
-  if (docChunks.length) queries_run.push("document_qa(user_doc_chunks)");
+  const tasks: Promise<void>[] = [];
 
-  // (4) Safety card from prescreen rails (overrides/augments pre-check)
-  if (prescreen?.escalate_hotline) {
-    emergencyCard = emergencyCardFromHotline(
-      prescreen.safety_note,
-      prescreen.escalate_hotline,
-      prescreen.red_flags
+  // prescreen → emergency(escalate) + care card (streams when 27B/Gemini returns)
+  if (wantSymptom) {
+    tasks.push(
+      (async () => {
+        const pr = await runPrescreen({
+          patientCase: buildCase(u, ctx.profile, ctx.text),
+          symptomsText,
+        });
+        prescreen = pr;
+        queries_run.push(`prescreen(${pr.source})+rails`);
+        if (pr.escalate_hotline) {
+          push(emergencyCardFromHotline(pr.safety_note, pr.escalate_hotline, pr.red_flags));
+        }
+        const comorbid =
+          u.condition_hint && scheme
+            ? await comorbidityFor(condIdFromHint(u.condition_hint), scheme)
+            : [];
+        const careBody = await synthCareBody(u, pr, comorbid);
+        push({ type: "care", title: "วันนี้ควรทำอะไร", body: careBody, department: deptThai(pr.department) });
+      })()
     );
   }
-  if (emergencyCard) cards.push(emergencyCard);
 
-  // (5) Care card (prescreen + comorbidity → consultative text via Gemini)
-  if (prescreen) {
-    const careBody = await synthCareBody(u, prescreen, comorbid);
-    cards.push({
-      type: "care",
-      title: "วันนี้ควรทำอะไร",
-      body: careBody,
-      department: deptThai(prescreen.department),
-    });
+  // rights
+  if (scheme) {
+    tasks.push(
+      (async () => {
+        const services = await servicesForScheme(scheme);
+        queries_run.push(`R1 services(${scheme})`);
+        if (services.length) {
+          push({
+            type: "rights",
+            title: `สิทธิ์ที่ครอบคลุม (${SCHEME_LABELS[scheme] ?? scheme})`,
+            items: services.slice(0, 8).map((s) => ({
+              name: s.name,
+              copay: s.copay || "ไม่มีค่าใช้จ่าย",
+              interval: s.interval,
+            })),
+          });
+          const ri = rightInfo(scheme);
+          if (ri?.source_url)
+            citations.push({ title: ri.source_title ?? ri.name_th, url: ri.source_url, publisher: ri.publisher ?? "" });
+        }
+      })()
+    );
   }
 
-  // (6) Rights card
-  if (services.length) {
-    cards.push({
-      type: "rights",
-      title: `สิทธิ์ที่ครอบคลุม (${SCHEME_LABELS[scheme!] ?? scheme})`,
-      items: services.slice(0, 8).map((s) => ({
-        name: s.name,
-        copay: s.copay || "ไม่มีค่าใช้จ่าย",
-        interval: s.interval,
-      })),
-    });
-    const ri = scheme ? rightInfo(scheme) : undefined;
-    if (ri?.source_url) citations.push({ title: ri.source_title ?? ri.name_th, url: ri.source_url, publisher: ri.publisher ?? "" });
+  // benefit (rule engine) — also covers the universal elder benefit by age
+  if (scheme || (u.age ?? 0) >= 55) {
+    tasks.push(
+      (async () => {
+        const benefits = scheme ? await benefitsForScheme(scheme) : [];
+        if (scheme) queries_run.push(`R2 benefits(${scheme})`);
+        benefitCard = buildBenefitCard(u, scheme, benefits, attrs, ruleTraces, citations);
+        if (benefitCard) push(benefitCard);
+      })()
+    );
   }
 
-  // (7) Benefit card (rule engine — deterministic eligibility)
-  const benefitCard = buildBenefitCard(u, scheme, benefits, attrs, ruleTraces, citations);
-  if (benefitCard) cards.push(benefitCard);
-
-  // (8) Facility card
-  if (facilities.length) {
-    cards.push({ type: "facility", title: "ไปที่ไหน", items: facilities });
+  // facility
+  if (scheme) {
+    tasks.push(
+      (async () => {
+        const facilities = await searchFacilities({ scheme, area: u.area, conditionId: u.condition_hint });
+        queries_run.push(`facility_match(${scheme})`);
+        if (facilities.length) {
+          hasFacility = true;
+          push({ type: "facility", title: "ไปที่ไหน", items: facilities });
+        }
+      })()
+    );
   }
 
-  // (9) Next steps (consultative checklist)
-  const checklist = await synthNextSteps(u, prescreen, benefitCard, facilities.length > 0);
-  if (checklist.length) {
-    cards.push({ type: "next_steps", title: "ขั้นตอนถัดไป", checklist });
+  // graphrag citations (no card)
+  tasks.push(
+    (async () => {
+      const chunks = await retrieveKgChunks(ctx.text, 4);
+      if (chunks.length) {
+        queries_run.push("graphrag_retrieve");
+        for (const c of chunks)
+          if (c.source_url) citations.push({ title: c.source_title || c.name, url: c.source_url, publisher: c.publisher || "" });
+      }
+    })()
+  );
+
+  // document QA (no card; citations folded into evidence)
+  if (ctx.hasDoc) {
+    tasks.push(
+      (async () => {
+        const docChunks = await retrieveUserDocs(ctx.text, ctx.userId, 4);
+        if (docChunks.length) queries_run.push("document_qa(user_doc_chunks)");
+      })()
+    );
   }
 
-  // (10) Evidence
-  for (const c of chunks) {
-    if (c.source_url) citations.push({ title: c.source_title || c.name, url: c.source_url, publisher: c.publisher || "" });
-  }
-  const evidence: EvidenceCard = {
+  await Promise.all(tasks);
+
+  // next steps (needs prescreen + benefit)
+  const checklist = await synthNextSteps(u, prescreen, benefitCard, hasFacility);
+  if (checklist.length) push({ type: "next_steps", title: "ขั้นตอนถัดไป", checklist });
+
+  // evidence (last)
+  push({
     type: "evidence",
     title: "ที่มา & ความน่าเชื่อถือ",
     sources: dedupeCitations(citations).slice(0, 8),
     rule_traces: ruleTraces as EvidenceCard["rule_traces"],
     disclaimer:
       "คำแนะนำเบื้องต้น ไม่ใช่การวินิจฉัยแทนแพทย์ · สิทธิ์ตัดสินด้วย rule engine (ไม่ใช่ AI) · ไม่เก็บข้อมูลส่วนตัวถ้าไม่ยินยอม",
-  };
-  cards.push(evidence);
+  });
 
-  // (11) slot-filling: ask one question only when truly blocking
   const pending = decidePending(u, cards);
 
   return {
@@ -242,6 +300,11 @@ export async function runTurn(ctx: TurnContext): Promise<TurnResult> {
       prescreen_result: prescreen,
     },
   };
+}
+
+/** Non-streaming convenience wrapper. */
+export function runTurn(ctx: TurnContext): Promise<TurnResult> {
+  return runTurnStream(ctx);
 }
 
 // ---- helpers ----------------------------------------------------------------
@@ -383,12 +446,23 @@ function severityThai(s: string): string {
   return m[s] ?? s;
 }
 
+const SCHEME_INTENTS: (Intent | undefined)[] = [
+  "symptom_triage",
+  "rights_discovery",
+  "rights_lookup",
+  "facility_search",
+  "benefit_eligibility",
+];
+
 function decidePending(u: Understood, cards: Card[]): { question: string | null; quickReplies?: string[] } {
-  // If we couldn't determine the scheme and there's nothing actionable yet, ask.
-  const hasContent = cards.some((c) => c.type !== "evidence" && c.type !== "safety");
-  if (!u.scheme && !hasContent) {
+  // Knowing the scheme unlocks rights / benefit / facility cards — so if it's
+  // still missing for a rights-relevant intent, ask for it (one short question).
+  if (!u.scheme && SCHEME_INTENTS.includes(u.intent)) {
+    const hasContent = cards.some((c) => c.type !== "evidence" && c.type !== "safety");
     return {
-      question: "ขอทราบสิทธิการรักษาของคุณหน่อยค่ะ ใช้สิทธิอะไร?",
+      question: hasContent
+        ? "เพื่อบอกสิทธิ์ที่ครอบคลุมและสถานพยาบาลที่ใช่ ขอทราบสิทธิการรักษาของคุณหน่อยค่ะ"
+        : "ขอทราบสิทธิการรักษาของคุณหน่อยค่ะ ใช้สิทธิอะไร?",
       quickReplies: ["บัตรทอง", "ประกันสังคม", "ข้าราชการ", "ไม่แน่ใจ"],
     };
   }

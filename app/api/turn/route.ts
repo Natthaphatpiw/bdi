@@ -2,12 +2,13 @@ import { NextRequest } from "next/server";
 import { ERR, ok, requireUser, wantsStream } from "@/lib/http";
 import { userClient, adminClient } from "@/lib/supabase/server";
 import { transcribeAudio } from "@/lib/gemini";
-import { runTurn } from "@/lib/orchestrator";
-import type { Profile, TurnRequest, TurnResponse, Understood, Card } from "@/lib/types";
+import { runTurnStream, type TurnContext, type TurnResult } from "@/lib/orchestrator";
+import type { Profile, TurnRequest, TurnResponse, Understood } from "@/lib/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 120;
+// Keep under common serverless limits; RUNPOD_TIMEOUT_MS bounds the slow path.
+export const maxDuration = 60;
 
 export async function POST(req: NextRequest) {
   const auth = await requireUser(req);
@@ -60,89 +61,61 @@ export async function POST(req: NextRequest) {
 
   if (!text.trim()) return ERR.badRequest("ไม่มีข้อความสำหรับประมวลผล");
 
-  // run the orchestrator
-  let result;
-  try {
-    result = await runTurn({
-      text,
-      profile,
-      priorSlots,
-      userId: user.id,
-      channel: body.input.type === "voice" ? "web" : "web",
-      hasDoc,
-      documentId,
-    });
-  } catch (e) {
-    console.error("[turn] orchestrator:", (e as Error).message);
-    return ERR.server();
-  }
-
-  // persist (best-effort — never block the answer on a write error)
-  let auditId: string | undefined;
-  try {
-    await sb.from("messages").insert([
-      { session_id: body.session_id, role: "user", content: text },
-      { session_id: body.session_id, role: "assistant", content: JSON.stringify(result.cards) },
-    ]);
-    await sb.from("session_state").upsert({
-      session_id: body.session_id,
-      slots: result.understood,
-      intent: result.understood.intent ?? null,
-      pending_question: result.pending_question,
-    });
-    const { data: audit } = await adminClient()
-      .from("audit_log")
-      .insert({
-        session_id: body.session_id,
-        user_id: user.id,
-        queries_run: result.audit.queries_run,
-        rule_traces: result.audit.rule_traces,
-        citations: result.audit.citations,
-        prescreen_result: result.audit.prescreen_result,
-      })
-      .select("id")
-      .single();
-    auditId = audit?.id;
-  } catch (e) {
-    console.error("[turn] persist:", (e as Error).message);
-  }
-
-  const payload: TurnResponse = {
-    session_id: body.session_id,
-    transcript,
-    understood: result.understood,
-    pending_question: result.pending_question,
-    quick_replies: result.quick_replies,
-    cards: result.cards,
-    audit_id: auditId,
+  const ctx: TurnContext = {
+    text,
+    profile,
+    priorSlots,
+    userId: user.id,
+    channel: "web",
+    hasDoc,
+    documentId,
   };
 
-  if (!wantsStream(req)) return ok(payload);
-  return streamResponse(payload);
-}
+  // ---- non-streaming (JSON) ----
+  if (!wantsStream(req)) {
+    let result: TurnResult;
+    try {
+      result = await runTurnStream(ctx);
+    } catch (e) {
+      console.error("[turn] orchestrator:", (e as Error).message);
+      return ERR.server();
+    }
+    const auditId = await persistTurn(sb, body.session_id, user.id, text, result);
+    const payload: TurnResponse = {
+      session_id: body.session_id,
+      transcript,
+      understood: result.understood,
+      pending_question: result.pending_question,
+      quick_replies: result.quick_replies,
+      cards: result.cards,
+      audit_id: auditId,
+    };
+    return ok(payload);
+  }
 
-// ---- SSE streaming (cards arrive one at a time) ----------------------------
-function streamResponse(payload: TurnResponse): Response {
+  // ---- streaming (SSE) — emit cards live as each tool finishes ----
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
     async start(controller) {
       const send = (event: string, data: unknown) =>
         controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
-
-      if (payload.transcript) send("transcript", { text: payload.transcript });
-      send("understood", payload.understood);
-
-      // safety card first, then the rest in order, with a small gap for UX
-      const ordered: Card[] = payload.cards;
-      for (const card of ordered) {
-        send("card", card);
-        await new Promise((r) => setTimeout(r, 120));
+      try {
+        if (transcript) send("transcript", { text: transcript });
+        const result = await runTurnStream(ctx, (type, data) => {
+          if (type === "understood") send("understood", data);
+          else if (type === "card") send("card", data);
+        });
+        if (result.pending_question) {
+          send("pending", { question: result.pending_question, quick_replies: result.quick_replies });
+        }
+        const auditId = await persistTurn(sb, body.session_id, user.id, text, result);
+        send("done", { audit_id: auditId });
+      } catch (e) {
+        console.error("[turn] stream:", (e as Error).message);
+        send("error", { code: "server_error", message_th: "ระบบมีปัญหาชั่วคราว ลองใหม่อีกครั้ง", retryable: true });
+      } finally {
+        controller.close();
       }
-      if (payload.pending_question) {
-        send("pending", { question: payload.pending_question, quick_replies: payload.quick_replies });
-      }
-      send("done", { audit_id: payload.audit_id });
-      controller.close();
     },
   });
   return new Response(stream, {
@@ -153,4 +126,42 @@ function streamResponse(payload: TurnResponse): Response {
       "X-Accel-Buffering": "no",
     },
   });
+}
+
+// persist messages + slots + audit (best-effort; never block the answer)
+async function persistTurn(
+  sb: ReturnType<typeof userClient>,
+  sessionId: string,
+  userId: string,
+  text: string,
+  result: TurnResult
+): Promise<string | undefined> {
+  try {
+    await sb.from("messages").insert([
+      { session_id: sessionId, role: "user", content: text },
+      { session_id: sessionId, role: "assistant", content: JSON.stringify(result.cards) },
+    ]);
+    await sb.from("session_state").upsert({
+      session_id: sessionId,
+      slots: result.understood,
+      intent: result.understood.intent ?? null,
+      pending_question: result.pending_question,
+    });
+    const { data: audit } = await adminClient()
+      .from("audit_log")
+      .insert({
+        session_id: sessionId,
+        user_id: userId,
+        queries_run: result.audit.queries_run,
+        rule_traces: result.audit.rule_traces,
+        citations: result.audit.citations,
+        prescreen_result: result.audit.prescreen_result,
+      })
+      .select("id")
+      .single();
+    return audit?.id;
+  } catch (e) {
+    console.error("[turn] persist:", (e as Error).message);
+    return undefined;
+  }
 }

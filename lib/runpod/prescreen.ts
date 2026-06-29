@@ -2,6 +2,7 @@
 // with DETERMINISTIC safety rails. The model classifies; the rails — which the
 // LLM cannot override — guarantee we never under-triage a red-flag case.
 import { env, featureFlags } from "../env";
+import { geminiText } from "../gemini";
 import {
   buildSystemPrompt,
   buildUserPrompt,
@@ -51,8 +52,9 @@ async function callRunpod(messages: { role: string; content: string }[]): Promis
       temperature: 0,
       max_tokens: 1024,
     }),
-    // 27B + possible cold start: allow generous time
-    signal: AbortSignal.timeout(120_000),
+    // Bounded wait: on a cold worker (~60-120s to compile) we abort and fall
+    // back to mock+rails so the turn still returns within the function limit.
+    signal: AbortSignal.timeout(env.runpodTimeoutMs),
   });
   if (!res.ok) {
     const body = await res.text().catch(() => "");
@@ -65,7 +67,35 @@ async function callRunpod(messages: { role: string; content: string }[]): Promis
   return { text: json.choices?.[0]?.message?.content ?? "", usage: json.usage };
 }
 
-// ---- mock (offline / no creds) ---------------------------------------------
+// ---- fallback: Gemini does the triage with the SAME prompt contract ---------
+// Used when RunPod is unavailable / times out (cold start). Much better than the
+// canned mock; the deterministic safety rails still wrap the result.
+async function geminiPredict(patientCase: PatientCase): Promise<string | null> {
+  if (!featureFlags.hasGemini()) return null;
+  try {
+    const xml = await geminiText(buildUserPrompt(patientCase), {
+      system: buildSystemPrompt(),
+      temperature: 0,
+      maxOutputTokens: 256,
+      thinkingBudget: 0,
+    });
+    return /<disease>/i.test(xml) ? xml : null;
+  } catch (e) {
+    console.error("[prescreen] gemini fallback failed:", (e as Error).message);
+    return null;
+  }
+}
+
+async function fallbackPredict(
+  patientCase: PatientCase,
+  symptomsText: string
+): Promise<{ raw: string; source: "gemini" | "mock" }> {
+  const gemini = await geminiPredict(patientCase);
+  if (gemini) return { raw: gemini, source: "gemini" };
+  return { raw: mockPredict(symptomsText), source: "mock" };
+}
+
+// ---- mock (offline / no creds / last resort) --------------------------------
 function mockPredict(symptomsText: string): string {
   const t = symptomsText || "";
   if (t.includes("เจ็บ") && t.includes("อก"))
@@ -103,7 +133,7 @@ export async function runPrescreen(input: PrescreenInput): Promise<PrescreenResu
   const { patientCase, symptomsText, symptomIds = [] } = input;
   let raw = "";
   let usage: unknown;
-  let source: "runpod" | "mock" = "mock";
+  let source: "runpod" | "gemini" | "mock" = "mock";
 
   if (featureFlags.hasRunpod()) {
     try {
@@ -115,11 +145,15 @@ export async function runPrescreen(input: PrescreenInput): Promise<PrescreenResu
       usage = r.usage;
       source = "runpod";
     } catch (e) {
-      console.error("[prescreen] RunPod failed, falling back to mock:", (e as Error).message);
-      raw = mockPredict(symptomsText);
+      console.error("[prescreen] RunPod failed, falling back to Gemini:", (e as Error).message);
+      const fb = await fallbackPredict(patientCase, symptomsText);
+      raw = fb.raw;
+      source = fb.source;
     }
   } else {
-    raw = mockPredict(symptomsText);
+    const fb = await fallbackPredict(patientCase, symptomsText);
+    raw = fb.raw;
+    source = fb.source;
   }
 
   const parsed = parsePrediction(raw);

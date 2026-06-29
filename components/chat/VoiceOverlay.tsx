@@ -90,7 +90,10 @@ export function VoiceOverlay({
       }}
       title="กำลังฟัง…"
     >
-      <div className="flex flex-col items-center gap-4 py-2">
+      <div className="flex animate-rise flex-col items-center gap-4 py-2">
+        {!showTranscript && voice.state === "listening" && (
+          <p className="text-sm text-ink-soft">กำลังฟัง… พูดได้เลย แล้วแตะหยุดเมื่อเสร็จ</p>
+        )}
         {showTranscript ? (
           <>
             <textarea

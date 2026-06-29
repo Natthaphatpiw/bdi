@@ -64,8 +64,8 @@ export function MicButton({
         onClick={onClick}
         {...holdHandlers}
         className={cn(
-          "relative grid h-16 w-16 place-items-center rounded-full text-white transition-colors",
-          listening ? "bg-safety animate-pulse-ring" : "bg-brand"
+          "relative grid h-20 w-20 place-items-center rounded-full bg-brand text-white transition-transform active:scale-95",
+          listening && "animate-pulse-ring-brand"
         )}
       >
         {listening ? (
@@ -73,17 +73,17 @@ export function MicButton({
             {BARS.map((base, i) => (
               <span
                 key={i}
-                className="w-1 rounded-full bg-white"
-                style={{ height: Math.max(4, base * (8 + level * 28)) + "px" }}
+                className="w-1.5 rounded-full bg-white transition-all duration-100"
+                style={{ height: Math.max(5, base * (10 + level * 34)) + "px" }}
               />
             ))}
           </div>
         ) : (
-          <Mic className="h-7 w-7" aria-hidden="true" />
+          <Mic className="h-8 w-8" aria-hidden="true" />
         )}
       </button>
       {listening && (
-        <span className="font-medium tabular-nums text-safety">{fmt(seconds)}</span>
+        <span className="font-medium tabular-nums text-brand-dark">{fmt(seconds)}</span>
       )}
     </div>
   );

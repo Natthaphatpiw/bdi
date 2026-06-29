@@ -15,9 +15,22 @@ export interface KgChunk {
   similarity: number;
 }
 
+// Once we learn kg_chunks is unseeded, stop spending a Gemini embed per turn.
+let kgChunksKnownEmpty = false;
+
 export async function retrieveKgChunks(query: string, matchCount = 5, label?: string): Promise<KgChunk[]> {
   if (!featureFlags.hasSupabase() || !featureFlags.hasGemini()) return [];
+  if (kgChunksKnownEmpty) return [];
   try {
+    // Skip the embed entirely if the table has no embedded rows.
+    const { count } = await adminClient()
+      .from("kg_chunks")
+      .select("id", { count: "exact", head: true })
+      .not("embedding", "is", null);
+    if (!count) {
+      kgChunksKnownEmpty = true;
+      return [];
+    }
     const embedding = await embedOne(query, "RETRIEVAL_QUERY");
     if (!embedding.length) return [];
     const { data, error } = await adminClient().rpc("match_kg_chunks", {

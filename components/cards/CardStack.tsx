@@ -18,12 +18,25 @@ function isEmergency(card: Card): card is SafetyCard {
   return card.type === "safety" && card.level === "emergency";
 }
 
+// Canonical display order — cards stream in as tools finish (any order), but we
+// always render them in this order so the layout stays stable.
+const ORDER: Record<string, number> = {
+  safety: 0,
+  care: 1,
+  rights: 2,
+  benefit: 3,
+  facility: 4,
+  next_steps: 5,
+};
+
 export function CardStack({ cards, onQuickAnswer, surface }: CardStackProps) {
   const [evidenceOpen, setEvidenceOpen] = useState(false);
 
   const emergency = cards.find(isEmergency);
   const evidence = cards.find((c): c is EvidenceCard => c.type === "evidence");
-  const body = cards.filter((c) => !isEmergency(c) && c.type !== "evidence");
+  const body = cards
+    .filter((c) => !isEmergency(c) && c.type !== "evidence")
+    .sort((a, b) => (ORDER[a.type] ?? 9) - (ORDER[b.type] ?? 9));
 
   return (
     <div className="flex flex-col gap-3">
@@ -33,8 +46,8 @@ export function CardStack({ cards, onQuickAnswer, surface }: CardStackProps) {
         </div>
       )}
 
-      {body.map((card, i) => (
-        <div key={i} className="card-enter">
+      {body.map((card) => (
+        <div key={card.type} className="card-enter">
           <ActionCard card={card} surface={surface} onQuickAnswer={onQuickAnswer} />
         </div>
       ))}

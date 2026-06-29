@@ -10,8 +10,8 @@ import { UnderstoodChips } from "@/components/chat/UnderstoodChips";
 import { QuickReplies } from "@/components/chat/QuickReplies";
 import { InputBar } from "@/components/chat/InputBar";
 import { VoiceOverlay } from "@/components/chat/VoiceOverlay";
+import { ThinkingDots } from "@/components/chat/ThinkingDots";
 import { CardStack } from "@/components/cards/CardStack";
-import { Skeleton } from "@/components/ui/Skeleton";
 import {
   createSession,
   getMessages,
@@ -39,6 +39,7 @@ type ChatItem =
       pending?: PendingPrompt;
       thinking: boolean;
       error?: string;
+      stopped?: boolean;
     };
 
 export interface ChatScreenProps {
@@ -91,6 +92,8 @@ export function ChatScreen({
   // Guards so init + auto-send run exactly once.
   const initialisedRef = useRef(false);
   const autoSentRef = useRef(false);
+  // Abort controller for the in-flight turn (stop button).
+  const abortRef = useRef<AbortController | null>(null);
   // Scroll anchor.
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -124,44 +127,68 @@ export function ChatScreen({
         ? { type: "document", text, document_id: documentId }
         : { type: "text", text };
 
+      const controller = new AbortController();
+      abortRef.current = controller;
+      const aborted = () => controller.signal.aborted;
+
       try {
-        await turnStream(sid, turnInput, {
-          onUnderstood: (u) => patchAssistant((m) => ({ ...m, understood: u })),
-          onCard: (card) =>
-            patchAssistant((m) => ({ ...m, thinking: false, cards: [...m.cards, card] })),
-          onPending: (question, quickReplies) =>
-            patchAssistant((m) => ({ ...m, thinking: false, pending: { question, quickReplies } })),
-          onError: (message) => {
-            toast(message, "error");
-            patchAssistant((m) => ({ ...m, thinking: false, error: message }));
+        await turnStream(
+          sid,
+          turnInput,
+          {
+            onUnderstood: (u) => patchAssistant((m) => ({ ...m, understood: u })),
+            onCard: (card) =>
+              patchAssistant((m) => ({ ...m, thinking: false, cards: [...m.cards, card] })),
+            onPending: (question, quickReplies) =>
+              patchAssistant((m) => ({ ...m, thinking: false, pending: { question, quickReplies } })),
+            onError: (message) => {
+              toast(message, "error");
+              patchAssistant((m) => ({ ...m, thinking: false, error: message }));
+            },
+            onDone: () => setSending(false),
           },
-          onDone: () => setSending(false),
-        });
+          controller.signal
+        );
       } catch {
-        // Streaming unavailable — fall back to the non-stream endpoint.
-        try {
-          const resp = await turn(sid, turnInput);
-          patchAssistant((m) => ({
-            ...m,
-            thinking: false,
-            understood: resp.understood,
-            cards: resp.cards,
-            pending: resp.pending_question
-              ? { question: resp.pending_question, quickReplies: resp.quick_replies }
-              : undefined,
-          }));
-        } catch (err) {
-          const message =
-            err instanceof Error && err.message ? err.message : "เกิดข้อผิดพลาด ลองใหม่อีกครั้ง";
-          toast(message, "error");
-          patchAssistant((m) => ({ ...m, thinking: false, error: message }));
+        if (aborted()) {
+          patchAssistant((m) => ({ ...m, thinking: false, stopped: m.cards.length === 0 }));
+        } else {
+          // Streaming unavailable — fall back to the non-stream endpoint.
+          try {
+            const resp = await turn(sid, turnInput, controller.signal);
+            patchAssistant((m) => ({
+              ...m,
+              thinking: false,
+              understood: resp.understood,
+              cards: resp.cards,
+              pending: resp.pending_question
+                ? { question: resp.pending_question, quickReplies: resp.quick_replies }
+                : undefined,
+            }));
+          } catch (err) {
+            if (aborted()) {
+              patchAssistant((m) => ({ ...m, thinking: false, stopped: m.cards.length === 0 }));
+            } else {
+              const message =
+                err instanceof Error && err.message ? err.message : "เกิดข้อผิดพลาด ลองใหม่อีกครั้ง";
+              toast(message, "error");
+              patchAssistant((m) => ({ ...m, thinking: false, error: message }));
+            }
+          }
         }
       } finally {
         setSending(false);
+        abortRef.current = null;
       }
     },
     [documentId, toast]
   );
+
+  // Stop the in-flight turn (ChatGPT-style).
+  const stop = useCallback(() => {
+    abortRef.current?.abort();
+    setSending(false);
+  }, []);
 
   // --- session init + history hydration -------------------------------------
   useEffect(() => {
@@ -261,10 +288,7 @@ export function ChatScreen({
               {item.understood && <UnderstoodChips data={item.understood} />}
 
               {item.thinking && item.cards.length === 0 && !item.error ? (
-                <div className="space-y-2">
-                  <Skeleton variant="card" />
-                  <p className="px-1 text-sm text-ink-muted">กำลังคิด…</p>
-                </div>
+                <ThinkingDots />
               ) : item.cards.length > 0 ? (
                 <CardStack
                   cards={item.cards}
@@ -277,6 +301,10 @@ export function ChatScreen({
                 <ChatBubble role="assistant">
                   <span className="text-safety">{item.error}</span>
                 </ChatBubble>
+              )}
+
+              {item.stopped && (
+                <p className="px-1 text-sm text-ink-muted">หยุดการประมวลผลแล้ว</p>
               )}
 
               {item.pending && (
@@ -301,7 +329,8 @@ export function ChatScreen({
         onSend={handleSend}
         onMic={() => setVoiceOpen(true)}
         onAttach={() => router.push(`${basePath}/documents`)}
-        disabled={sending}
+        onStop={stop}
+        sending={sending}
         placeholder={documentId ? "ถามจากเอกสารนี้…" : "พิมพ์อาการหรือคำถาม…"}
       />
 
