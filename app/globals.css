@@ -1,0 +1,60 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+html,
+body {
+  background: #f7f8fa;
+  color: #111827;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  font-family: var(--font-thai), system-ui, sans-serif;
+}
+
+/* Large mode (โหมดผู้สูงอายุ) — scale typography ×1.2 */
+.large-text {
+  font-size: 1.2rem;
+}
+.large-text .tap-lg {
+  min-height: 56px;
+}
+
+/* Card stream entrance */
+.card-enter {
+  animation: card-in 0.25s ease-out both;
+}
+@keyframes card-in {
+  0% {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* hide scrollbars on chip rows */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* safe-area helpers */
+.pt-safe {
+  padding-top: var(--safe-top);
+}
+.pb-safe {
+  padding-bottom: var(--safe-bottom);
+}

@@ -1,0 +1,302 @@
+[
+ {
+  "rule_id": "RULE_OAA",
+  "benefit_id": "BEN_OAA",
+  "summary_th": "อายุ ≥60, สัญชาติไทย, มีทะเบียนบ้านในพื้นที่, ไม่รับสวัสดิการรัฐซ้ำซ้อน; means-test มีในระเบียบแต่ยังไม่บังคับใช้",
+  "logic": {
+   "benefit_id": "BEN_OAA",
+   "all": [
+    {
+     "attr": "age",
+     "op": ">=",
+     "value": 60
+    },
+    {
+     "attr": "thai_nationality",
+     "op": "==",
+     "value": true
+    },
+    {
+     "attr": "registered_in_area",
+     "op": "exists"
+    },
+    {
+     "attr": "receives_state_pension_or_benapd",
+     "op": "==",
+     "value": false
+    },
+    {
+     "attr": "resides_in_state_welfare_institution",
+     "op": "==",
+     "value": false
+    },
+    {
+     "attr": "receives_regular_state_salary_or_income",
+     "op": "==",
+     "value": false
+    }
+   ],
+   "conditional": [
+    {
+     "note": "Means-test clause exists in 2566 regulation but is DORMANT (criteria undefined; transitional ข้อ 17-18). Do not enforce.",
+     "attr": "low_or_insufficient_income",
+     "op": "exists",
+     "status": "enacted_but_not_in_effect",
+     "review_required": true,
+     "confidence": "low"
+    }
+   ],
+   "exceptions": [
+    {
+     "note": "การรับเบี้ยความพิการหรือเงินสงเคราะห์ผู้ป่วยเอดส์ ไม่ตัดสิทธิ",
+     "attr": "receives_disability_or_aids_allowance",
+     "op": "allowed",
+     "value": true
+    }
+   ],
+   "value_by_age_band": {
+    "60-69": 600,
+    "70-79": 700,
+    "80-89": 800,
+    "90+": 1000,
+    "unit": "THB/month",
+    "status_note": "อัตราขั้นบันไดใช้อยู่สำหรับปีงบ 2569; ข้อเสนอจ่ายถ้วนหน้า 1,000 บาท ยังไม่บังคับใช้ ณ 2026-06-28"
+   }
+  }
+ },
+ {
+  "rule_id": "RULE_SSS_MEDICAL",
+  "benefit_id": "BEN_SSS_SICKNESS",
+  "summary_th": "ประกันสังคม ม.33/39 + ส่งสมทบ ≥3 เดือน ใน 15 เดือน → สิทธิรักษาที่ รพ.ตามบัตรรับรองสิทธิ",
+  "logic": {
+   "all": [
+    {
+     "attr": "scheme",
+     "op": "==",
+     "value": "SSS"
+    },
+    {
+     "attr": "sss_section",
+     "op": "in",
+     "value": [
+      33,
+      39
+     ]
+    },
+    {
+     "attr": "contribution_months_in_last_15",
+     "op": ">=",
+     "value": 3
+    }
+   ],
+   "required_attrs": [
+    "scheme",
+    "sss_section",
+    "contribution_months_in_last_15"
+   ]
+  }
+ },
+ {
+  "rule_id": "RULE_SSS_CHILD",
+  "benefit_id": "BEN_SSS_CHILD",
+  "summary_th": "ส่งสมทบ ≥12/36 เดือน + บุตร 0-6 ปี ≤3 คน → 1,000 บาท/เดือน/บุตร",
+  "logic": {
+   "all": [
+    {
+     "attr": "sss_section",
+     "op": "in",
+     "value": [
+      33,
+      39
+     ]
+    },
+    {
+     "attr": "contribution_months_in_last_36",
+     "op": ">=",
+     "value": 12
+    },
+    {
+     "attr": "child_age_years",
+     "op": "<=",
+     "value": 6
+    },
+    {
+     "attr": "active_children_count",
+     "op": "<=",
+     "value": 3
+    }
+   ],
+   "required_attrs": [
+    "sss_section",
+    "contribution_months_in_last_36",
+    "child_age_years",
+    "active_children_count"
+   ]
+  }
+ },
+ {
+  "rule_id": "RULE_SSS_OLDAGE",
+  "benefit_id": "BEN_SSS_OLDAGE",
+  "summary_th": "ส่งสมทบ ≥180 เดือน + อายุ ≥55 + สิ้นสุดผู้ประกันตน → บำนาญ; <180 เดือน → บำเหน็จ",
+  "logic": {
+   "all": [
+    {
+     "attr": "contribution_months_total",
+     "op": ">=",
+     "value": 180
+    },
+    {
+     "attr": "age",
+     "op": ">=",
+     "value": 55
+    },
+    {
+     "attr": "insured_status",
+     "op": "==",
+     "value": "ended"
+    }
+   ],
+   "required_attrs": [
+    "contribution_months_total",
+    "age",
+    "insured_status"
+   ]
+  }
+ },
+ {
+  "rule_id": "RULE_PP_SCREEN",
+  "benefit_id": "",
+  "summary_th": "อายุ ≥35 ปี → คัดกรองเบาหวาน/ความดันฟรี ทุกสิทธิ (P&P)",
+  "logic": {
+   "all": [
+    {
+     "attr": "age",
+     "op": ">=",
+     "value": 35
+    }
+   ],
+   "note": "บริการสร้างเสริมสุขภาพ/คัดกรอง (P&P) ฟรีทุกสิทธิ",
+   "required_attrs": [
+    "age"
+   ]
+  }
+ },
+ {
+  "rule_id": "RULE_DISABILITY",
+  "benefit_id": "BEN_DISABILITY",
+  "summary_th": "สัญชาติไทย + มีบัตรคนพิการ + มีภูมิลำเนา → เบี้ยความพิการ 800/1,000 บาท",
+  "logic": {
+   "all": [
+    {
+     "attr": "thai_nationality",
+     "op": "==",
+     "value": true
+    },
+    {
+     "attr": "has_disability_id_card",
+     "op": "==",
+     "value": true
+    },
+    {
+     "attr": "registered_in_area",
+     "op": "exists"
+    },
+    {
+     "attr": "resides_in_state_institution",
+     "op": "==",
+     "value": false
+    }
+   ],
+   "required_attrs": [
+    "thai_nationality",
+    "has_disability_id_card",
+    "registered_in_area"
+   ]
+  }
+ },
+ {
+  "rule_id": "RULE_STATE_WELFARE",
+  "benefit_id": "BEN_STATE_WELFARE",
+  "summary_th": "สัญชาติไทย ≥18 + รายได้ ≤100,000/ปี + ทรัพย์สิน ≤100,000 + ไม่มีบัตรเครดิต → บัตรสวัสดิการแห่งรัฐ",
+  "logic": {
+   "all": [
+    {
+     "attr": "thai_nationality",
+     "op": "==",
+     "value": true
+    },
+    {
+     "attr": "age",
+     "op": ">=",
+     "value": 18
+    },
+    {
+     "attr": "annual_income",
+     "op": "<=",
+     "value": 100000
+    },
+    {
+     "attr": "financial_assets",
+     "op": "<=",
+     "value": 100000
+    },
+    {
+     "attr": "has_credit_card",
+     "op": "==",
+     "value": false
+    }
+   ],
+   "required_attrs": [
+    "thai_nationality",
+    "age",
+    "annual_income",
+    "financial_assets",
+    "has_credit_card"
+   ]
+  }
+ },
+ {
+  "rule_id": "RULE_LTC",
+  "benefit_id": "BEN_LTC",
+  "summary_th": "Barthel ADL ≤11 (ภาวะพึ่งพิง) → สิทธิดูแลระยะยาว LTC ที่บ้าน",
+  "logic": {
+   "all": [
+    {
+     "attr": "barthel_adl_score",
+     "op": "<=",
+     "value": 11
+    }
+   ],
+   "required_attrs": [
+    "barthel_adl_score"
+   ]
+  }
+ },
+ {
+  "rule_id": "RULE_AIDS",
+  "benefit_id": "BEN_AIDS",
+  "summary_th": "มีใบรับรองแพทย์รัฐยืนยันเอดส์ + ภูมิลำเนา + รายได้ไม่พอ → เบี้ยยังชีพผู้ป่วยเอดส์ 500 บาท/เดือน",
+  "logic": {
+   "all": [
+    {
+     "attr": "has_aids_medical_cert",
+     "op": "==",
+     "value": true
+    },
+    {
+     "attr": "registered_in_area",
+     "op": "exists"
+    },
+    {
+     "attr": "insufficient_income",
+     "op": "==",
+     "value": true
+    }
+   ],
+   "required_attrs": [
+    "has_aids_medical_cert",
+    "registered_in_area"
+   ]
+  }
+ }
+]
