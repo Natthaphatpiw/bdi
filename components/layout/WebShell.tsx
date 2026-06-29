@@ -3,9 +3,12 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { Loader2 } from "lucide-react";
 import { Logo } from "@/components/ui/Logo";
 import { IconButton } from "@/components/ui/IconButton";
+import { Button } from "@/components/ui/Button";
 import { Toaster } from "@/components/ui/Toast";
+import { useAuth } from "@/lib/client/auth";
 import { useUi } from "@/store/ui";
 import { cn } from "@/lib/cn";
 
@@ -29,8 +32,38 @@ const NAV_LINKS: NavLink[] = [
 
 export function WebShell({ children }: WebShellProps) {
   const pathname = usePathname();
+  const { ready, error } = useAuth();
   const largeText = useUi((s) => s.largeText);
   const toggleLargeText = useUi((s) => s.toggleLargeText);
+
+  function Gate() {
+    if (error) {
+      return (
+        <div className="grid min-h-[60vh] place-items-center">
+          <div className="w-full max-w-md rounded-card border border-hairline bg-surface p-6 text-center shadow-card">
+            <h2 className="text-base font-semibold text-ink">เชื่อมต่อระบบไม่สำเร็จ</h2>
+            <p className="mt-2 text-sm text-ink-soft">{error}</p>
+            <div className="mt-4">
+              <Button fullWidth onClick={() => location.reload()}>
+                ลองใหม่
+              </Button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    if (!ready) {
+      return (
+        <div className="grid min-h-[60vh] place-items-center">
+          <div className="flex flex-col items-center gap-3 text-ink-soft">
+            <Loader2 className="h-7 w-7 animate-spin text-brand" aria-hidden="true" />
+            <p className="text-sm">กำลังเชื่อมต่อ…</p>
+          </div>
+        </div>
+      );
+    }
+    return <>{children}</>;
+  }
 
   return (
     <div className={cn("min-h-screen bg-canvas", largeText && "large-text")}>
@@ -70,7 +103,9 @@ export function WebShell({ children }: WebShellProps) {
           />
         </div>
       </header>
-      <main className="max-w-3xl mx-auto px-4 py-4">{children}</main>
+      <main className="max-w-3xl mx-auto px-4 py-4">
+        <Gate />
+      </main>
     </div>
   );
 }

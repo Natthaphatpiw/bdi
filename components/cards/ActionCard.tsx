@@ -7,6 +7,7 @@ import {
   Coins,
   MapPin,
   Check,
+  CircleHelp,
   ListChecks,
   AlertTriangle,
   Phone,
@@ -44,7 +45,7 @@ function openExternal(url: string, surface: "web" | "line") {
 
 const ACCENT: Record<string, string> = {
   care: "border-l-brand",
-  rights: "border-l-brand",
+  rights: "border-l-rights",
   benefit: "border-l-benefit",
   facility: "border-l-facility",
   next_steps: "border-l-hairline",
@@ -80,10 +81,24 @@ function CardFrame({
 
 function BenefitStatusBadge({ status }: { status: EligibilityStatus }) {
   if (status === "ELIGIBLE") {
-    return <Badge tone="benefit">✅ มีสิทธิ์</Badge>;
+    return (
+      <Badge tone="rights">
+        <span className="inline-flex items-center gap-1">
+          <Check className="h-3.5 w-3.5" aria-hidden="true" />
+          มีสิทธิ์
+        </span>
+      </Badge>
+    );
   }
   if (status === "INDETERMINATE") {
-    return <Badge tone="benefit">❓ ต้องตอบเพิ่ม</Badge>;
+    return (
+      <Badge tone="benefit">
+        <span className="inline-flex items-center gap-1">
+          <CircleHelp className="h-3.5 w-3.5" aria-hidden="true" />
+          ต้องตอบเพิ่ม
+        </span>
+      </Badge>
+    );
   }
   return <Badge tone="review">ไม่เข้าเกณฑ์</Badge>;
 }
@@ -109,13 +124,13 @@ function RightsBody({ card }: { card: RightsCard }) {
   return (
     <CardFrame
       accent={ACCENT.rights}
-      icon={<BadgeCheck className="h-5 w-5 shrink-0 text-brand" aria-hidden="true" />}
+      icon={<BadgeCheck className="h-5 w-5 shrink-0 text-rights" aria-hidden="true" />}
       title={card.title}
     >
       <ul className="flex flex-col gap-2">
         {card.items.map((item, i) => (
           <li key={i} className="flex items-start gap-2">
-            <Check className="mt-0.5 h-4 w-4 shrink-0 text-brand" aria-hidden="true" />
+            <Check className="mt-0.5 h-4 w-4 shrink-0 text-rights" aria-hidden="true" />
             <span className="min-w-0 flex-1 text-ink">{item.name}</span>
             <span className="shrink-0 text-right">
               <span className="font-medium text-ink">

@@ -144,8 +144,8 @@ export function FacilitiesScreen({ surface }: Props) {
           {locating
             ? "กำลังหาตำแหน่ง…"
             : coords
-              ? "📍 ใช้ตำแหน่งของฉันแล้ว"
-              : "📍 ใช้ตำแหน่งของฉัน"}
+              ? "ใช้ตำแหน่งของฉันแล้ว"
+              : "ใช้ตำแหน่งของฉัน"}
         </Button>
 
         <Button

@@ -30,9 +30,9 @@ export function safetyPreCheck(text: string): PreCheck {
     card: {
       type: "safety",
       level: "emergency",
-      title: "⚠️ อาการนี้อาจเป็นภาวะฉุกเฉิน",
+      title: "อาการนี้อาจเป็นภาวะฉุกเฉิน",
       body: `ตรวจพบสัญญาณเสี่ยง: ${matched.join(", ")} — ถ้ามีอาการเหล่านี้ ให้โทร 1669 ทันที (สายด่วนการแพทย์ฉุกเฉิน ฟรี 24 ชม.) หรือไปห้องฉุกเฉินที่ใกล้ที่สุด`,
-      actions: [{ label: "📞 โทร 1669 ทันที", tel: "1669", style: "danger" }],
+      actions: [{ label: "โทร 1669 ทันที", tel: "1669", style: "danger" }],
     },
   };
 }
@@ -42,8 +42,8 @@ export function emergencyCardFromHotline(note: string, hotline: string, redFlags
   return {
     type: "safety",
     level: "emergency",
-    title: "⚠️ ควรไปพบแพทย์ฉุกเฉินทันที",
+    title: "ควรไปพบแพทย์ฉุกเฉินทันที",
     body: `${redFlags.length ? `อาการเสี่ยง: ${redFlags.join(", ")}. ` : ""}${note}`,
-    actions: [{ label: `📞 โทร ${hotline}`, tel: hotline, style: "danger" }],
+    actions: [{ label: `โทร ${hotline}`, tel: hotline, style: "danger" }],
   };
 }

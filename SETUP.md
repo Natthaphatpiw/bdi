@@ -52,17 +52,27 @@ npm run dev
 - LIFF: <http://localhost:3000/liff> (ดูข้อ 6 — LIFF ต้องเปิดผ่าน HTTPS จริง)
 - ตรวจสุขภาพระบบ: <http://localhost:3000/api/health>
 
-## 6) LINE Mini App (LIFF) — Published: BDI
-ค่าที่ตั้งไว้: Channel ID `2010548037`, LIFF ID `2010548037-5rV4ZG6L`
+## 6) LINE LIFF — หลายแอป (1 LIFF ต่อ 1 หน้า) · domain `https://bdi-lac.vercel.app`
+ใช้ **LINE LIFF หลายแอป** ภายใต้ **LINE Login channel** เดียว (Channel ID `2010548037`).
+สร้างแต่ละ LIFF ใน **LINE Developers → channel → LIFF → Add**, ตั้งเหมือนกันทุกตัว:
+**Scopes = `openid` + `profile`**, **Size = `Full`**, ตั้ง **Endpoint URL** ตามตาราง แล้วเอา LIFF ID ไปใส่ใน `.env.local`:
 
-ต้องทำใน **LINE Developers Console**:
-1. **LIFF → Endpoint URL** = `https://<โดเมนที่ deploy>/liff`  (ต้องเป็น HTTPS จริง — localhost ใช้ไม่ได้กับ LIFF)
-2. **LIFF → Scopes** = เปิด `openid` + `profile` (ต้องมี `openid` เพื่อให้ `getIDToken()` ใช้ได้)
-3. **LIFF → Size** = `Full`
-4. ทดสอบ local: ใช้ tunnel เช่น `npx localtunnel --port 3000` หรือ `cloudflared tunnel --url http://localhost:3000` แล้วเอา HTTPS URL ไปตั้งเป็น Endpoint `/liff` ชั่วคราว
-5. เปิดผ่าน `https://miniapp.line.me/2010548037-5rV4ZG6L` ในแอป LINE
+| หน้า | ตัวแปร .env | Endpoint URL |
+|---|---|---|
+| หน้าแรก | `NEXT_PUBLIC_LIFF_ID_HOME` | `https://bdi-lac.vercel.app/liff` |
+| ปรึกษา/แชต | `NEXT_PUBLIC_LIFF_ID_CHAT` | `https://bdi-lac.vercel.app/liff/chat` |
+| สิทธิ์ | `NEXT_PUBLIC_LIFF_ID_RIGHTS` | `https://bdi-lac.vercel.app/liff/rights` |
+| หาสถานพยาบาล | `NEXT_PUBLIC_LIFF_ID_FACILITIES` | `https://bdi-lac.vercel.app/liff/facilities` |
+| เอกสาร | `NEXT_PUBLIC_LIFF_ID_DOCUMENTS` | `https://bdi-lac.vercel.app/liff/documents` |
+| โปรไฟล์ | `NEXT_PUBLIC_LIFF_ID_PROFILE` | `https://bdi-lac.vercel.app/liff/profile` |
+| ประวัติ | `NEXT_PUBLIC_LIFF_ID_HISTORY` | `https://bdi-lac.vercel.app/liff/history` |
 
-> Auth flow: LIFF `getIDToken()` → `POST /api/auth/line` (verify กับ LINE ด้วย channel id/secret) → คืน Supabase session → ใช้เป็น Bearer ทุก API
+- ตัวที่เว้นว่าง → fallback ไป `NEXT_PUBLIC_LIFF_ID_HOME` อัตโนมัติ (เริ่มทำ HOME + CHAT ก่อนได้)
+- โค้ดเลือก LIFF ID ตาม path ให้เอง (`lib/client/liffConfig.ts`) — คุณแค่ใส่ ID ให้ตรงช่อง
+- เปิดผ่าน `https://liff.line.me/<LIFF_ID>` หรือผูกกับ Rich menu แต่ละปุ่ม → LIFF ของแต่ละหน้า
+- **ใส่ env เดียวกันนี้บน Vercel ด้วย** (Settings → Environment Variables) แล้ว redeploy
+
+> Auth flow: LIFF `getIDToken()` → `POST /api/auth/line` (verify กับ channel `2010548037`) → Supabase session. ทุก LIFF ใต้ channel เดียวใช้ `LINE_CHANNEL_ID/SECRET` ชุดเดียว
 
 ## 7) Deploy (แนะนำ Vercel)
 1. push โค้ด `rusit-rusuk/` ขึ้น Git แล้ว Import เข้า Vercel

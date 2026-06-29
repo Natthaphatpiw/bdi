@@ -84,13 +84,13 @@ export function EvidenceDrawer({ card, open, onOpenChange, surface }: EvidenceDr
                     </Badge>
                   </div>
                   {trace.passed.length > 0 && (
-                    <p className="mt-1">✅ {trace.passed.join(", ")}</p>
+                    <p className="mt-1 text-rights">เงื่อนไขที่ผ่าน: {trace.passed.join(", ")}</p>
                   )}
                   {trace.failed && trace.failed.length > 0 && (
-                    <p className="mt-0.5">⛔ {trace.failed.join(", ")}</p>
+                    <p className="mt-0.5 text-safety">ไม่ผ่าน: {trace.failed.join(", ")}</p>
                   )}
                   {trace.asked && trace.asked.length > 0 && (
-                    <p className="mt-0.5">❓ {trace.asked.join(", ")}</p>
+                    <p className="mt-0.5 text-benefit">ต้องตอบเพิ่ม: {trace.asked.join(", ")}</p>
                   )}
                 </li>
               ))}

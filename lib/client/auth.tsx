@@ -4,8 +4,10 @@
 //   surface="line" → LIFF idToken → POST /api/auth/line → setSession()
 // Exposes a single { ready, userId, displayName, ... } so screens are surface-agnostic.
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { usePathname } from "next/navigation";
 import { supabaseBrowser } from "./supabaseBrowser";
 import { initLiff } from "./liff";
+import { liffIdForPath } from "./liffConfig";
 import type { LineAuthResponse } from "../types";
 
 export type Surface = "web" | "line";
@@ -35,6 +37,7 @@ export function useAuth() {
 }
 
 export function AuthProvider({ surface, children }: { surface: Surface; children: ReactNode }) {
+  const pathname = usePathname();
   const [state, setState] = useState<AuthState>({
     ready: false,
     error: null,
@@ -52,7 +55,7 @@ export function AuthProvider({ surface, children }: { surface: Surface; children
     async function boot() {
       try {
         if (surface === "line") {
-          const liffId = process.env.NEXT_PUBLIC_LIFF_ID || "";
+          const liffId = liffIdForPath(pathname);
           const session = await initLiff(liffId);
           if (session.idToken) {
             const res = await fetch("/api/auth/line", {
@@ -106,6 +109,8 @@ export function AuthProvider({ surface, children }: { surface: Surface; children
     return () => {
       cancelled = true;
     };
+    // init runs once at the entry path; SPA navigation must not re-init LIFF.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [surface]);
 
   return <AuthCtx.Provider value={state}>{children}</AuthCtx.Provider>;
