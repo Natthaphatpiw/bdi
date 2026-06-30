@@ -127,21 +127,24 @@ function RightsBody({ card }: { card: RightsCard }) {
       icon={<BadgeCheck className="h-5 w-5 shrink-0 text-rights" aria-hidden="true" />}
       title={card.title}
     >
-      <ul className="flex flex-col gap-2">
-        {card.items.map((item, i) => (
-          <li key={i} className="flex items-start gap-2">
-            <Check className="mt-0.5 h-4 w-4 shrink-0 text-rights" aria-hidden="true" />
-            <span className="min-w-0 flex-1 text-ink">{item.name}</span>
-            <span className="shrink-0 text-right">
-              <span className="font-medium text-ink">
-                {item.copay === "0" || item.copay === "" ? "ฟรี" : item.copay}
-              </span>
-              {item.interval && (
-                <span className="ml-1 text-sm text-ink-muted">({item.interval})</span>
-              )}
-            </span>
-          </li>
-        ))}
+      <ul className="flex flex-col gap-3">
+        {card.items.map((item, i) => {
+          const free = item.copay === "0" || item.copay === "" || item.copay === "ไม่มีค่าใช้จ่าย";
+          return (
+            <li key={i} className="flex items-start gap-2">
+              <Check className="mt-1 h-4 w-4 shrink-0 text-rights" aria-hidden="true" />
+              <div className="min-w-0 flex-1">
+                <p className="break-words text-ink">{item.name}</p>
+                <p className="mt-0.5 text-sm text-ink-soft">
+                  <span className={free ? "font-medium text-rights" : "text-ink-soft"}>
+                    {free ? "ฟรี" : item.copay}
+                  </span>
+                  {item.interval ? <span className="text-ink-muted"> · {item.interval}</span> : null}
+                </p>
+              </div>
+            </li>
+          );
+        })}
       </ul>
     </CardFrame>
   );

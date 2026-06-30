@@ -16,7 +16,7 @@ import {
   benefitById,
   SCHEME_LABELS,
 } from "./kg";
-import { evaluateRule, getRule, evaluateBenefit, questionFor } from "./ruleEngine";
+import { evaluateRule, getRule, evaluateBenefit, questionFor, ATTR_QUESTIONS_TH } from "./ruleEngine";
 import { retrieveKgChunks, retrieveUserDocs } from "./retrieve";
 import type {
   Card,
@@ -62,20 +62,39 @@ async function extractUnderstanding(
   if (ctx.profile.scheme && !base.scheme) base.scheme = ctx.profile.scheme;
   if (ctx.profile.birth_year && !base.age) base.age = CURRENT_YEAR - ctx.profile.birth_year;
 
-  const prompt = `คุณเป็นผู้ช่วยสกัดข้อมูลสุขภาพจากข้อความภาษาไทย ตอบเป็น JSON เท่านั้น
-ข้อความผู้ใช้: "${ctx.text}"
-ข้อมูลที่รู้แล้ว: ${JSON.stringify(base)}
-สกัดและรวมข้อมูลเป็น JSON ตามคีย์นี้ (เว้นว่างถ้าไม่ทราบ ห้ามเดา):
+  const prompt = `คุณเป็นตัวสกัดข้อมูล (information extraction) จากข้อความสุขภาพภาษาไทย ตอบเป็น JSON เท่านั้น
+กฎเด็ดขาด:
+- สกัดเฉพาะข้อมูลที่ปรากฏชัดเจนในข้อความ หรืออยู่ใน "ข้อมูลที่ทราบแล้ว" เท่านั้น
+- ห้ามเดา ห้ามสมมติ ห้ามอนุมานจากโรคหรือบริบท เช่น อย่าเดาอายุ และอย่าเดาสิทธิการรักษา (scheme) ถ้าผู้ใช้ไม่ได้บอกตรงๆ
+- ถ้าไม่ทราบฟิลด์ไหน ให้ใส่ null
+
+ข้อความผู้ใช้ล่าสุด: "${ctx.text}"
+ข้อมูลที่ทราบแล้ว: ${JSON.stringify(base)}
+
+สกัดเป็น JSON ตามคีย์นี้:
 {
- "patient_role": "ผู้ป่วยเอง|ผู้ดูแล",
- "age": number,
- "scheme": "UCS|SSS|CSMBS",            // บัตรทอง=UCS ประกันสังคม=SSS ข้าราชการ=CSMBS
- "area": "ชื่อเขต/อำเภอ เช่น บางกะปิ",
+ "patient_role": "ผู้ป่วยเอง|ผู้ดูแล|null",
+ "age": "number|null   // เฉพาะเมื่อมีตัวเลขอายุในข้อความ",
+ "scheme": "UCS|SSS|CSMBS|null   // เฉพาะเมื่อผู้ใช้ระบุ: บัตรทอง=UCS ประกันสังคม=SSS ข้าราชการ=CSMBS",
+ "area": "ชื่อเขต/อำเภอ|null",
  "symptoms": ["อาการเป็นคำสั้นๆ"],
- "condition_hint": "โรคที่กล่าวถึง เช่น เบาหวาน",
+ "condition_hint": "โรคที่กล่าวถึง เช่น เบาหวาน|null",
  "intent": "symptom_triage|rights_discovery|facility_search|benefit_eligibility|document_qa|general_info"
 }`;
-  const extracted = await geminiJson<Partial<Understood>>(prompt, {}, { temperature: 0.1 });
+  const extracted = await geminiJson<Partial<Understood>>(prompt, {}, { temperature: 0 });
+
+  // Deterministic guard against hallucinated demographics: only accept a scheme /
+  // age that the user actually mentioned (or that we already knew).
+  if (
+    extracted.scheme &&
+    !base.scheme &&
+    !/บัตรทอง|30 ?บาท|สปสช|ประกันสังคม|ประกันตน|มาตรา ?(33|39|40)|ข้าราชการ|เบิกได้|กรมบัญชีกลาง|UCS|SSS|CSMBS/i.test(ctx.text)
+  ) {
+    delete extracted.scheme;
+  }
+  if (extracted.age != null && base.age == null && !/\d|อายุ|ขวบ|ปี/.test(ctx.text)) {
+    delete extracted.age;
+  }
 
   // symptoms newly introduced THIS turn (not carried over) — drives whether we
   // need to (re)run the 27B prescreen.
@@ -208,7 +227,7 @@ export async function runTurnStream(
           push({
             type: "rights",
             title: `สิทธิ์ที่ครอบคลุม (${SCHEME_LABELS[scheme] ?? scheme})`,
-            items: services.slice(0, 8).map((s) => ({
+            items: services.slice(0, 6).map((s) => ({
               name: s.name,
               copay: s.copay || "ไม่มีค่าใช้จ่าย",
               interval: s.interval,
@@ -365,8 +384,12 @@ function buildBenefitCard(
     }
   }
 
-  // Scheme-specific benefits.
-  for (const b of schemeBenefits.slice(0, 4)) {
+  // Scheme-specific benefits — keep the card focused: show benefits the user has
+  // (ELIGIBLE) or can confirm with a friendly question; drop noise we can't ask
+  // nicely (e.g. a rule needing a raw attr like active_children_count) or that
+  // clearly doesn't apply.
+  for (const b of schemeBenefits) {
+    if (items.length >= 4) break;
     let status: BenefitCard["items"][number]["status"] = "ELIGIBLE";
     let missing: string[] = [];
     let ask: string | undefined;
@@ -375,7 +398,10 @@ function buildBenefitCard(
       const r = evals[0];
       status = r.status;
       missing = r.missing_attrs;
-      ask = r.missing_attrs.length ? questionFor(r.missing_attrs[0]) : undefined;
+      const friendly = r.missing_attrs.find((a) => a in ATTR_QUESTIONS_TH);
+      if (status === "NOT_ELIGIBLE") continue; // don't clutter with non-eligible
+      if (status === "INDETERMINATE" && !friendly) continue; // can't ask nicely → skip
+      ask = friendly ? questionFor(friendly) : undefined;
       ruleTraces.push({ rule: r.rule_id, status: r.status, passed: r.trace.filter((t) => t.result === true).map((t) => t.attr), asked: r.missing_attrs });
     }
     items.push({
@@ -391,7 +417,7 @@ function buildBenefitCard(
   }
 
   if (!items.length) return null;
-  return { type: "benefit", title: "สิทธิประโยชน์ที่อาจได้", items: items.slice(0, 5) };
+  return { type: "benefit", title: "สิทธิประโยชน์ที่อาจได้", items: items.slice(0, 4) };
 }
 
 async function synthCareBody(
@@ -406,16 +432,14 @@ async function synthCareBody(
     comorbidity: comorbid.map((c) => c.disease),
   };
   const fallback =
-    `จากอาการที่เล่ามา แนะนำให้ไปพบ${deptThai(prescreen.department) ?? "แพทย์"} ` +
-    `(ระดับความเร่งด่วน: ${severityThai(prescreen.severity)}) ` +
-    `${prescreen.disease ? `เบื้องต้นอาจเกี่ยวกับ ${prescreen.disease}. ` : ""}` +
-    `${comorbid.length ? `เนื่องจากเป็นกลุ่มโรคเรื้อรัง ควรเฝ้าระวัง ${comorbid.map((c) => c.disease).join(", ")} ด้วย. ` : ""}` +
-    `นี่เป็นคำแนะนำเบื้องต้น ไม่ใช่การวินิจฉัยแทนแพทย์`;
+    `แนะนำให้ไปพบ${deptThai(prescreen.department) ?? "แพทย์"} (${severityThai(prescreen.severity)})` +
+    `${prescreen.disease ? ` เบื้องต้นอาจเกี่ยวกับ ${prescreen.disease}` : ""}. นี่เป็นคำแนะนำเบื้องต้น ไม่ใช่การวินิจฉัยแทนแพทย์`;
   if (!featureFlags.hasGemini()) return fallback;
-  const prompt = `เขียนคำแนะนำเชิงปรึกษาสั้นๆ (2-3 ประโยค ภาษาไทย อบอุ่น) จากข้อมูลนี้ ห้ามวินิจฉัยเด็ดขาด ห้ามตัดสินสิทธิ์ ให้แนะนำแผนกและความเร่งด่วน:
+  const prompt = `เขียนคำแนะนำสั้นกระชับ 1-2 ประโยค ภาษาไทยสุภาพ จากข้อมูลนี้ บอกแค่ "ควรไปแผนกไหน" และ "เร่งด่วนแค่ไหน" เท่านั้น
+ห้ามวินิจฉัย ห้ามตัดสินสิทธิ์ ห้ามพูดเวิ่นเว้อหรือพูดถึงโรคร่วมถ้าไม่จำเป็น:
 ${JSON.stringify(facts)}
-ตอบเป็นข้อความล้วน ไม่ต้องมีหัวข้อ`;
-  const text = await geminiText(prompt, { temperature: 0.4, maxOutputTokens: 300 }).catch(() => "");
+ตอบเป็นข้อความล้วน ไม่เกิน 2 ประโยค`;
+  const text = await geminiText(prompt, { temperature: 0.3, maxOutputTokens: 160 }).catch(() => "");
   return text.trim() || fallback;
 }
 
