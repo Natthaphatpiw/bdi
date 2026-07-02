@@ -7,6 +7,7 @@ import type {
   Consent,
   DocumentRecord,
   FacilityResult,
+  PassportResult,
   Profile,
   Scheme,
   SessionResponse,
@@ -175,6 +176,17 @@ export function searchFacilities(params: {
   limit?: number;
 }): Promise<{ facilities: FacilityResult[] }> {
   return jsonFetch("/api/facilities/search", { method: "POST", body: JSON.stringify(params) });
+}
+
+// ---- Case Passport ----------------------------------------------------------
+export function generatePassport(
+  sessionId: string,
+  extra?: Record<string, string>
+): Promise<PassportResult> {
+  return jsonFetch("/api/passport", {
+    method: "POST",
+    body: JSON.stringify({ session_id: sessionId, extra }),
+  });
 }
 
 // ---- feedback / history -----------------------------------------------------

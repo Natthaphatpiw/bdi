@@ -221,6 +221,45 @@ export interface SessionResponse {
   greeting_th: string;
 }
 
+// ---- Case Passport ----
+export interface PassportData {
+  ref_code: string; // short reference, e.g. CP-7QK2
+  generated_at: string; // ISO
+  patient: {
+    role?: string; // ผู้ป่วยเอง / ผู้ดูแล
+    display_name?: string;
+    age?: number;
+    gender?: string;
+    scheme?: string; // บัตรทอง / ประกันสังคม / ข้าราชการ
+    area?: string;
+  };
+  chief_complaint: string; // สรุปเรื่องที่มา/อาการสำคัญ
+  symptoms: string[];
+  condition?: string;
+  triage?: { department?: string; severity?: string };
+  rights_summary: string[]; // บริการ/สิทธิ์ที่ครอบคลุม (สั้น)
+  recommended_facility?: { name: string; note?: string };
+  prepared_documents: string[];
+  questions_for_provider?: string[];
+  hotlines?: { number: string; name: string }[];
+  notes?: string;
+  disclaimer: string;
+}
+
+export interface PassportMissingField {
+  field: string;
+  label: string; // Thai label for the input
+  question: string; // Thai question shown to the user
+  type?: "text" | "number" | "select";
+  options?: string[];
+}
+
+export interface PassportResult {
+  status: "ready" | "need_info";
+  missing?: PassportMissingField[];
+  passport?: PassportData;
+}
+
 // ---- auth bridge (LINE) ----
 export interface LineAuthResponse {
   access_token: string;

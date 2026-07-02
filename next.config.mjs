@@ -1,8 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  // pdf-parse and neo4j-driver are server-only; keep them external from bundling
-  serverExternalPackages: ["pdf-parse", "neo4j-driver"],
+  // server-only packages — keep external from the bundler
+  serverExternalPackages: ["pdf-parse", "neo4j-driver", "@mastra/core"],
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "profile.line-scdn.net" },

@@ -5,6 +5,7 @@
 // plus a voice overlay and a sticky input bar.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { IdCard } from "lucide-react";
 import { ChatBubble } from "@/components/chat/ChatBubble";
 import { UnderstoodChips } from "@/components/chat/UnderstoodChips";
 import { QuickReplies } from "@/components/chat/QuickReplies";
@@ -12,6 +13,8 @@ import { InputBar } from "@/components/chat/InputBar";
 import { VoiceOverlay } from "@/components/chat/VoiceOverlay";
 import { ThinkingDots } from "@/components/chat/ThinkingDots";
 import { CardStack } from "@/components/cards/CardStack";
+import { PassportModal } from "@/components/passport/PassportModal";
+import { Button } from "@/components/ui/Button";
 import {
   createSession,
   getMessages,
@@ -85,6 +88,7 @@ export function ChatScreen({
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [voiceOpen, setVoiceOpen] = useState(false);
+  const [passportOpen, setPassportOpen] = useState(false);
   const [activeSession, setActiveSession] = useState<string | null>(null);
 
   // Keep the latest session id available to send() without re-creating it.
@@ -265,8 +269,24 @@ export function ChatScreen({
     setInput("");
   };
 
+  const hasConversation = messages.some((m) => m.kind === "assistant" && m.cards.length > 0);
+
   return (
     <div className="flex min-h-[60vh] flex-col">
+      {hasConversation && activeSession && (
+        <div className="sticky top-0 z-10 -mx-4 mb-2 border-b border-hairline bg-canvas/90 px-4 py-2 backdrop-blur">
+          <Button
+            variant="outline"
+            size="md"
+            fullWidth
+            onClick={() => setPassportOpen(true)}
+            leftIcon={<IdCard className="h-4 w-4" aria-hidden="true" />}
+          >
+            สร้าง Case Passport — ใบสรุปยื่นโรงพยาบาล
+          </Button>
+        </div>
+      )}
+
       <div className="flex-1 space-y-2 pb-4">
         {messages.length === 0 && (
           <p className="px-1 py-8 text-center text-sm text-ink-muted">
@@ -342,6 +362,8 @@ export function ChatScreen({
           void send(t);
         }}
       />
+
+      <PassportModal open={passportOpen} onClose={() => setPassportOpen(false)} sessionId={activeSession} />
     </div>
   );
 }
