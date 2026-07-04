@@ -42,7 +42,7 @@ export function CardStack({ cards, onQuickAnswer, surface }: CardStackProps) {
   return (
     <div className="flex flex-col gap-3">
       {emergency && (
-        <div className="card-enter sticky top-2 z-20">
+        <div className="card-enter">
           <EmergencyBanner card={emergency} surface={surface} />
         </div>
       )}

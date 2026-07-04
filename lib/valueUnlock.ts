@@ -37,6 +37,10 @@ export function computeValueUnlock(
   }
 
   if (who.scheme === "SSS") {
+    lines.push({
+      label: "ค่ารักษาพยาบาลเจ็บป่วยที่ รพ.ตามบัตรรับรองสิทธิ",
+      note: "ไม่มีค่าใช้จ่าย · ฉุกเฉินเข้า รพ.ใดก็ได้ใน 72 ชม.แรก",
+    });
     lines.push({ label: "ค่าทันตกรรมประกันสังคม", amount_label: "900 บาท/ปี" });
     definite += 900;
   }

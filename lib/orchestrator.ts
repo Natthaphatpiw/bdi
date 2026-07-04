@@ -71,6 +71,15 @@ function baseSlots(ctx: TurnContext): Understood {
   return base;
 }
 
+// Affirmative answer values only — negative answers ("ไม่มีอาการเหล่านี้") must
+// not feed keyword-based red-flag detection even if they contain scary words.
+function affirmativeAnswerText(answers: Record<string, string>): string {
+  return Object.values(answers)
+    .map((v) => (v ?? "").trim())
+    .filter((v) => v && !/^(ไม่|ยังไม่|ปกติ|ไม่มี|ไม่เคย|ไม่แน่ใจ)/.test(v))
+    .join(" ");
+}
+
 // ---- 0b) deterministic merge of structured answers (no NLU → no hallucination)
 function applyAnswers(base: Understood, answers: Record<string, string>): Understood {
   const u: Understood = { ...base };
@@ -371,8 +380,12 @@ export async function runTurnStream(
     emit("card", card);
   };
 
-  // (1) deterministic safety pre-check (instant — runs even before questions)
-  const pre = safetyPreCheck(ctx.text);
+  // (1) deterministic safety pre-check (instant — runs even before questions).
+  // CRITICAL: on answers turns the text is a summary that INCLUDES the question
+  // labels (e.g. "มีอาการหมดสติร่วมด้วยไหม: ไม่มี") — keyword-matching that would
+  // fire a false emergency. Only AFFIRMATIVE answer values count as safety text.
+  const safetyText = ctx.answers ? affirmativeAnswerText(ctx.answers) : ctx.text;
+  const pre = safetyPreCheck(safetyText);
   if (pre.card) push(pre.card);
 
   // (2) understanding: structured answers merge deterministically (no NLU),
@@ -424,7 +437,9 @@ export async function runTurnStream(
 
   const scheme = u.scheme as Scheme | undefined;
   const attrs = buildAttrs(u, ctx.profile);
-  const symptomsText = (u.symptoms ?? []).join(" ") + " " + ctx.text;
+  // same rule for the red-flag detector inside the prescreen rails: question
+  // labels must never leak into the keyword-matched symptom text
+  const symptomsText = (u.symptoms ?? []).join(" ") + " " + safetyText;
 
   // (4) PRESCREEN FIRST (ThaiLLM-27B + rails) — the screening result drives
   //     which rights we show. Re-run only when the symptom set changed.
@@ -453,13 +468,43 @@ export async function runTurnStream(
 
   const tasks: Promise<void>[] = [];
 
-  // care card — consultative text from the screening result
+  // shared fetch: case-relevant services (used by BOTH the care synthesis and
+  // the rights card, so the advice names the actual free tests)
+  const emergencyCase = pre.emergency || !!prescreen?.escalate_hotline;
+  const servicesPromise: Promise<import("./kg").CoveredService[]> = scheme
+    ? (async () => {
+        let services =
+          isSymptomFlow && (condId || prescreen?.disease)
+            ? await recommendedServices({
+                conditionId: condId || undefined,
+                diseaseNameEn: prescreen?.disease ?? undefined,
+                scheme,
+                age: u.age, // never surface age-gated services to the wrong age
+              })
+            : [];
+        if (!services.length) {
+          const all = await servicesForScheme(scheme);
+          const age = u.age ?? 999;
+          services = all.filter((s) => (s.age_min ?? 0) <= age);
+        }
+        return rankServicesForCase(services, { emergencyCase, condId });
+      })()
+    : Promise.resolve([]);
+
+  // care card — consultative text from the screening result, made ACTIONABLE:
+  // names the suspected condition + the actual free tests under the user's right
   if (prescreen) {
     const pr = prescreen;
     tasks.push(
       (async () => {
-        const comorbid = condId && scheme ? await comorbidityFor(condId, scheme) : [];
-        const careBody = await synthCareBody(u, pr, comorbid);
+        const [comorbid, services] = await Promise.all([
+          condId && scheme ? comorbidityFor(condId, scheme) : Promise.resolve([]),
+          servicesPromise,
+        ]);
+        const careBody = await synthCareBody(u, pr, comorbid, {
+          scheme: scheme ? SCHEME_LABELS[scheme] ?? scheme : undefined,
+          services: services.slice(0, 2).map((s) => s.name),
+        });
         push({
           type: "care",
           title: "ผลคัดกรองเบื้องต้น — วันนี้ควรทำอะไร",
@@ -475,23 +520,10 @@ export async function runTurnStream(
   if (scheme) {
     tasks.push(
       (async () => {
-        let services =
-          isSymptomFlow && (condId || prescreen?.disease)
-            ? await recommendedServices({
-                conditionId: condId || undefined,
-                diseaseNameEn: prescreen?.disease ?? undefined,
-                scheme,
-                age: u.age, // never surface age-gated services to the wrong age
-              })
-            : [];
-        let title = `สิทธิ์ที่เกี่ยวกับเคสนี้ (${SCHEME_LABELS[scheme] ?? scheme})`;
-        if (!services.length) {
-          const all = await servicesForScheme(scheme);
-          const age = u.age ?? 999;
-          services = all.filter((s) => (s.age_min ?? 0) <= age);
-          if (isSymptomFlow) services = services.slice(0, 4);
-          else title = `สิทธิ์ที่ครอบคลุม (${SCHEME_LABELS[scheme] ?? scheme})`;
-        }
+        const services = await servicesPromise;
+        const title = isSymptomFlow
+          ? `สิทธิ์ที่เกี่ยวกับเคสนี้ (${SCHEME_LABELS[scheme] ?? scheme})`
+          : `สิทธิ์ที่ครอบคลุม (${SCHEME_LABELS[scheme] ?? scheme})`;
         queries_run.push(isSymptomFlow ? `R1 recommended(${scheme})` : `R1 services(${scheme})`);
         if (services.length) {
           push({
@@ -600,6 +632,31 @@ export function runTurn(ctx: TurnContext): Promise<TurnResult> {
 }
 
 // ---- helpers ----------------------------------------------------------------
+// Rank case-relevant services: screening/chronic-care first; emergency, mental
+// health and dialysis lines are noise for a routine case — keep them only when
+// the case actually calls for them.
+function rankServicesForCase(
+  services: import("./kg").CoveredService[],
+  opts: { emergencyCase: boolean; condId: string }
+): import("./kg").CoveredService[] {
+  const isCkd = opts.condId === "COND_CKD";
+  const filtered = services.filter((s) => {
+    const n = s.name;
+    if (!opts.emergencyCase && /ฉุกเฉิน|1669/.test(n)) return false; // lives in next_steps
+    if (!opts.emergencyCase && /สุขภาพจิต|1323/.test(n)) return false;
+    if (!isCkd && /ฟอกเลือด|ล้างไต|ปลูกถ่ายไต|บำบัดทดแทนไต/.test(n)) return false;
+    return true;
+  });
+  const rank = (s: import("./kg").CoveredService) => {
+    const t = s.type ?? "";
+    if (/screening/.test(t)) return 0;
+    if (/chronic|ncd/i.test(t) || /เรื้อรัง|NCD/.test(s.name)) return 1;
+    if (/primary/.test(t)) return 2;
+    return 3;
+  };
+  return filtered.sort((a, b) => rank(a) - rank(b));
+}
+
 function condIdFromHint(hint: string): string {
   const h = hint.toLowerCase();
   if (h.includes("เบาหวาน")) return "COND_T2DM";
@@ -677,23 +734,32 @@ function buildBenefitCard(
 async function synthCareBody(
   u: Understood,
   prescreen: NonNullable<Awaited<ReturnType<typeof runPrescreen>>>,
-  comorbid: { disease: string; services: string[] }[]
+  comorbid: { disease: string; services: string[] }[],
+  extra?: { scheme?: string; services?: string[] }
 ): Promise<string> {
+  const { conditionThaiFor } = await import("./triageLabels");
+  const conditionTh = conditionThaiFor(prescreen.disease);
   const facts = {
-    condition: prescreen.disease,
+    suspected_condition: conditionTh ?? prescreen.disease,
     department: deptThai(prescreen.department),
-    severity: prescreen.severity,
+    severity_th: severityThai(prescreen.severity),
+    scheme: extra?.scheme,
+    free_services_under_scheme: extra?.services,
     comorbidity: comorbid.map((c) => c.disease),
   };
   const fallback =
+    `อาการที่เล่ามาเข้าได้กับ${conditionTh ?? prescreen.disease ?? "ภาวะที่ควรตรวจเพิ่ม"} ` +
     `แนะนำให้ไปพบ${deptThai(prescreen.department) ?? "แพทย์"} (${severityThai(prescreen.severity)})` +
-    `${prescreen.disease ? ` เบื้องต้นอาจเกี่ยวกับ ${prescreen.disease}` : ""}. นี่เป็นคำแนะนำเบื้องต้น ไม่ใช่การวินิจฉัยแทนแพทย์`;
+    `${extra?.services?.length ? ` — ตรวจ${extra.services[0]}ได้ฟรีตามสิทธิ${extra.scheme ?? ""}` : ""}. ` +
+    `นี่เป็นคำแนะนำเบื้องต้น ไม่ใช่การวินิจฉัยแทนแพทย์`;
   if (!featureFlags.hasLLM()) return fallback;
-  const prompt = `เขียนคำแนะนำสั้นกระชับ 1-2 ประโยค ภาษาไทยสุภาพ จากข้อมูลนี้ บอกแค่ "ควรไปแผนกไหน" และ "เร่งด่วนแค่ไหน" เท่านั้น
-ห้ามวินิจฉัย ห้ามตัดสินสิทธิ์ ห้ามพูดเวิ่นเว้อหรือพูดถึงโรคร่วมถ้าไม่จำเป็น:
+  const prompt = `เขียนคำแนะนำเชิงปรึกษา 2-3 ประโยคสั้นๆ ภาษาไทยสุภาพ อบอุ่น จากข้อมูล JSON ด้านล่าง โครงคำตอบ:
+(1) อาการที่เล่ามา "เข้าได้กับ/อาจเกี่ยวกับ" ภาวะอะไร (ใช้คำระวัง ห้ามฟันธงวินิจฉัย)
+(2) ควรทำอะไรต่อแบบจับต้องได้ — ไปแผนกไหน เร่งด่วนแค่ไหน และถ้ามี free_services_under_scheme ให้บอกว่าตรวจอะไรได้ฟรีตามสิทธิ
+ห้ามตัดสินสิทธิ์ ห้ามเวิ่นเว้อ ห้ามขึ้นต้นด้วย "จากข้อมูล":
 ${JSON.stringify(facts)}
-ตอบเป็นข้อความล้วน ไม่เกิน 2 ประโยค`;
-  const text = await llmText(prompt, { maxOutputTokens: 200 }).catch(() => "");
+ตอบเป็นข้อความล้วน ไม่เกิน 3 ประโยค`;
+  const text = await llmText(prompt, { maxOutputTokens: 300 }).catch(() => "");
   return text.trim() || fallback;
 }
 

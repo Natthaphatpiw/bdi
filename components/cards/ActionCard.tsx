@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import {
   HeartPulse,
   BadgeCheck,
@@ -13,6 +13,8 @@ import {
   Phone,
   Navigation,
   Wallet,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import type {
   Card,
@@ -81,6 +83,38 @@ function CardFrame({
   );
 }
 
+// keep long lists breathable: show a few, expand on demand
+function ShowMoreButton({
+  hidden,
+  expanded,
+  onToggle,
+}: {
+  hidden: number;
+  expanded: boolean;
+  onToggle: () => void;
+}) {
+  if (hidden <= 0 && !expanded) return null;
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      className="mt-2 inline-flex items-center gap-1 text-sm font-medium text-brand hover:text-brand-dark"
+    >
+      {expanded ? (
+        <>
+          <ChevronUp className="h-4 w-4" aria-hidden="true" />
+          ย่อรายการ
+        </>
+      ) : (
+        <>
+          <ChevronDown className="h-4 w-4" aria-hidden="true" />
+          แสดงอีก {hidden} รายการ
+        </>
+      )}
+    </button>
+  );
+}
+
 function BenefitStatusBadge({ status }: { status: EligibilityStatus }) {
   if (status === "ELIGIBLE") {
     return (
@@ -123,6 +157,9 @@ function CareBody({ card }: { card: CareCard }) {
 }
 
 function RightsBody({ card }: { card: RightsCard }) {
+  const [expanded, setExpanded] = useState(false);
+  const MAX = 3;
+  const items = expanded ? card.items : card.items.slice(0, MAX);
   return (
     <CardFrame
       accent={ACCENT.rights}
@@ -130,7 +167,7 @@ function RightsBody({ card }: { card: RightsCard }) {
       title={card.title}
     >
       <ul className="flex flex-col gap-3">
-        {card.items.map((item, i) => {
+        {items.map((item, i) => {
           const free = item.copay === "0" || item.copay === "" || item.copay === "ไม่มีค่าใช้จ่าย";
           return (
             <li key={i} className="flex items-start gap-2">
@@ -148,6 +185,11 @@ function RightsBody({ card }: { card: RightsCard }) {
           );
         })}
       </ul>
+      <ShowMoreButton
+        hidden={card.items.length - MAX}
+        expanded={expanded}
+        onToggle={() => setExpanded((e) => !e)}
+      />
     </CardFrame>
   );
 }
@@ -159,6 +201,9 @@ function BenefitBody({
   card: BenefitCard;
   onQuickAnswer?: (text: string) => void;
 }) {
+  const [expanded, setExpanded] = useState(false);
+  const MAX = 2;
+  const shown = expanded ? card.items : card.items.slice(0, MAX);
   return (
     <CardFrame
       accent={ACCENT.benefit}
@@ -166,7 +211,7 @@ function BenefitBody({
       title={card.title}
     >
       <ul className="flex flex-col gap-3">
-        {card.items.map((item, i) => (
+        {shown.map((item, i) => (
           <li key={i} className="flex flex-col gap-1.5">
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-ink">{item.name}</span>
@@ -197,6 +242,11 @@ function BenefitBody({
           </li>
         ))}
       </ul>
+      <ShowMoreButton
+        hidden={card.items.length - MAX}
+        expanded={expanded}
+        onToggle={() => setExpanded((e) => !e)}
+      />
     </CardFrame>
   );
 }
