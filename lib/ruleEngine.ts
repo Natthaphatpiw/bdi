@@ -48,7 +48,10 @@ function evalLeaf(node: Logic, attrs: Attrs, trace: RuleTraceLeaf[]): TriState {
   const expected = node.value;
   const known = attr in attrs && attrs[attr] !== null && attrs[attr] !== undefined;
   let res: TriState;
-  if (op === "exists") res = known;
+  // "exists" checks a datum we may simply not have asked yet — absent means
+  // UNKNOWN (ask the user), never a definitive fail. Treating it as false made
+  // RULE_OAA jump to NOT_ELIGIBLE for users who were never asked their area.
+  if (op === "exists") res = known ? true : null;
   else if (!known) res = null; // UNKNOWN → must ask
   else res = compare(attrs[attr], op, expected);
   trace.push({

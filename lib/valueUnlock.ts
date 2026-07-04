@@ -19,9 +19,13 @@ export function computeValueUnlock(
       const r = evaluateRule(rule.logic as Record<string, unknown>, attrs);
       if (r.value && (r.status === "ELIGIBLE" || r.status === "INDETERMINATE")) {
         const yearly = r.value.amount * 12;
-        const label = `เบี้ยยังชีพผู้สูงอายุ (${r.value.amount.toLocaleString()} × 12 เดือน)`;
+        const label = "เบี้ยยังชีพผู้สูงอายุ";
         if (r.status === "ELIGIBLE") {
-          lines.push({ label, amount_label: `${yearly.toLocaleString()} บาท/ปี` });
+          lines.push({
+            label,
+            amount_label: `${yearly.toLocaleString()} บาท/ปี`,
+            note: `${r.value.amount.toLocaleString()} บาท/เดือน จ่ายทุกเดือน — ต้องลงทะเบียนที่สำนักงานเขต/อบต. ก่อนจึงจะได้รับ`,
+          });
           definite += yearly;
         } else {
           lines.push({
@@ -38,31 +42,42 @@ export function computeValueUnlock(
 
   if (who.scheme === "SSS") {
     lines.push({
-      label: "ค่ารักษาพยาบาลเจ็บป่วยที่ รพ.ตามบัตรรับรองสิทธิ",
-      note: "ไม่มีค่าใช้จ่าย · ฉุกเฉินเข้า รพ.ใดก็ได้ใน 72 ชม.แรก",
+      label: "ค่ารักษาพยาบาลที่ รพ.ตามบัตรรับรองสิทธิ",
+      note: "ไม่เสียค่าใช้จ่าย · เจ็บป่วยฉุกเฉินเข้า รพ.ที่ใกล้ที่สุดได้ทุกแห่งใน 72 ชั่วโมงแรก",
     });
-    lines.push({ label: "ค่าทันตกรรมประกันสังคม", amount_label: "900 บาท/ปี" });
+    lines.push({
+      label: "วงเงินทำฟันประกันสังคม (อุดฟัน ถอนฟัน ขูดหินปูน ผ่าฟันคุด)",
+      amount_label: "900 บาท/ปี",
+      note: "ใช้ได้ทุกปี ปีไหนไม่ใช้ วงเงินจะไม่ทบไปปีถัดไป",
+    });
     definite += 900;
   }
 
   const numericCount = lines.length;
   lines.push({
-    label: "สิทธิ์ตรวจ/คัดกรองโรคเรื้อรังที่รัฐครอบคลุม (น้ำตาล/ความดัน/ตา/ไต/เท้า)",
-    note: "ไม่มีค่าใช้จ่ายเมื่อใช้ตามสิทธิ",
+    label: "ตรวจคัดกรองโรคเรื้อรัง (น้ำตาลในเลือด ความดัน ตา ไต เท้า)",
+    note: "ฟรีเมื่อใช้ตามสิทธิ์ที่หน่วยบริการตามสิทธิ",
   });
   if (!numericCount) return null;
 
-  const total = definite + tentative;
+  // headline counts only confirmed amounts — pending ones stay on their own line
+  // (and in the subtitle) so the big number never overclaims
   const total_label =
-    `อย่างน้อย ${total.toLocaleString()} บาท/ปี` +
-    (definite === 0 && tentative > 0 ? " (รอยืนยันเงื่อนไข)" : "");
+    definite > 0
+      ? `อย่างน้อย ${definite.toLocaleString()} บาท/ปี`
+      : `อย่างน้อย ${tentative.toLocaleString()} บาท/ปี (รอยืนยันเงื่อนไข)`;
+  const subtitle =
+    definite > 0 && tentative > 0
+      ? `มูลค่าขั้นต่ำที่ยืนยันแล้ว และอาจได้เพิ่มอีก ${tentative.toLocaleString()} บาท/ปี เมื่อยืนยันเงื่อนไขครบ`
+      : "มูลค่าขั้นต่ำที่คุณมีสิทธิ์ได้รับต่อปี — ถ้าไม่ใช้สิทธิ์หรือไม่ลงทะเบียน ก็จะไม่ได้รับ";
 
   return {
     type: "value_unlock",
-    title: "มูลค่าสิทธิ์ที่อาจยังไม่ได้ใช้",
+    title: "สิทธิ์ที่มีอยู่ แต่อาจยังไม่ได้ใช้",
+    subtitle,
     total_label,
     lines,
     footnote:
-      "นับเฉพาะรายการที่มีแหล่งอ้างอิงและเกณฑ์ชัดเจน ยอดจริงขึ้นกับการใช้สิทธิ · ยังไม่รวมมูลค่าการตรวจคัดกรองที่รัฐครอบคลุม",
+      "รวมเฉพาะรายการที่มีแหล่งอ้างอิงและเกณฑ์ชัดเจน มูลค่าที่ได้จริงขึ้นกับการใช้สิทธิ์",
   };
 }

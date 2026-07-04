@@ -43,6 +43,7 @@ export interface BenefitCard {
     name: string;
     status: EligibilityStatus;
     value?: string;
+    details?: string[];
     missing?: string[];
     ask_th?: string;
     apply_at?: string;
@@ -64,6 +65,7 @@ export interface NextStepsCard {
 export interface ValueUnlockCard {
   type: "value_unlock";
   title: string;
+  subtitle?: string;
   total_label?: string; // e.g. "อย่างน้อย 7,200 บาท/ปี"
   lines: { label: string; amount_label?: string; note?: string; tentative?: boolean }[];
   footnote?: string;

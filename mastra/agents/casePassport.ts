@@ -24,13 +24,9 @@ const MODEL = process.env.CLAUDE_API_KEY || process.env.ANTHROPIC_API_KEY
   ? `anthropic/${process.env.CLAUDE_MODEL || "claude-sonnet-5"}`
   : `google/${process.env.GEMINI_MODEL || "gemini-3.5-flash"}`;
 
-// The Case Passport agent: reads a consultation session and either (a) decides
-// more info is needed and asks for it, or (b) structures a concise summary card
-// the patient can hand to a hospital. It never invents data and never diagnoses.
-export const casePassportAgent = new Agent({
-  id: "case-passport",
-  name: "case-passport",
-  instructions: `คุณเป็นผู้ช่วยสรุปข้อมูลเพื่อสร้าง "Case Passport" — ใบสรุปสั้นๆ ที่ผู้ป่วยบันทึกเป็นรูปภาพแล้วนำไปยื่นที่จุดคัดกรองของโรงพยาบาล/คลินิก เพื่อให้เจ้าหน้าที่เข้าใจเรื่องและสิทธิการรักษาได้รวดเร็ว
+// Exported so lib/passport.ts can reuse the same instructions for its direct
+// llmJson fallback path when the agent's structured output fails.
+export const CASE_PASSPORT_INSTRUCTIONS = `คุณเป็นผู้ช่วยสรุปข้อมูลเพื่อสร้าง "Case Passport" — ใบสรุปสั้นๆ ที่ผู้ป่วยบันทึกเป็นรูปภาพแล้วนำไปยื่นที่จุดคัดกรองของโรงพยาบาล/คลินิก เพื่อให้เจ้าหน้าที่เข้าใจเรื่องและสิทธิการรักษาได้รวดเร็ว
 
 ขั้นตอนการทำงาน:
 1) อ่านบทสนทนาและข้อมูลที่ให้มาทั้งหมด แล้วประเมินว่า "เพียงพอ" ต่อการสร้าง Case Passport หรือยัง
@@ -51,6 +47,15 @@ export const casePassportAgent = new Agent({
 - ภาษาไทย กระชับ เป็นทางการ เหมาะกับการยื่นเจ้าหน้าที่
 - ห้ามวินิจฉัยโรคแทนแพทย์ (ระบุได้แค่ "เบื้องต้นอาจเกี่ยวกับ…")
 - ไม่ต้องใส่รหัสอ้างอิง วันที่ สายด่วน หรือ disclaimer (ระบบจะเติมให้เอง)
-- ตอบเป็น JSON ตามสคีมาที่กำหนดเท่านั้น`,
+- ตอบเป็น JSON ตามสคีมาที่กำหนดเท่านั้น
+- เมื่อส่งคำตอบผ่านเครื่องมือ structured output ให้ใส่ฟิลด์ status / missing / passport ที่ระดับบนสุดของ arguments โดยตรง ห้ามห่อไว้ใต้คีย์อื่น (เช่น parameters, input, data)`;
+
+// The Case Passport agent: reads a consultation session and either (a) decides
+// more info is needed and asks for it, or (b) structures a concise summary card
+// the patient can hand to a hospital. It never invents data and never diagnoses.
+export const casePassportAgent = new Agent({
+  id: "case-passport",
+  name: "case-passport",
+  instructions: CASE_PASSPORT_INSTRUCTIONS,
   model: MODEL,
 });

@@ -76,7 +76,7 @@ function CardFrame({
     >
       <div className="flex items-center gap-2">
         {icon}
-        <h2 className="font-h2 font-semibold text-ink">{title}</h2>
+        <h2 className="text-[17px] font-semibold leading-snug text-ink">{title}</h2>
       </div>
       <div className="mt-2">{children}</div>
     </div>
@@ -210,14 +210,26 @@ function BenefitBody({
       icon={<Coins className="h-5 w-5 shrink-0 text-benefit" aria-hidden="true" />}
       title={card.title}
     >
-      <ul className="flex flex-col gap-3">
+      <p className="text-sm text-ink-soft">สิ่งที่สิทธิของคุณครอบคลุม — เช็กเกณฑ์เบื้องต้นจากข้อมูลที่คุณให้</p>
+      <ul className="mt-3 flex flex-col gap-3">
         {shown.map((item, i) => (
           <li key={i} className="flex flex-col gap-1.5">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-ink">{item.name}</span>
+              <span className="font-medium text-ink">{item.name}</span>
               <BenefitStatusBadge status={item.status} />
               {item.value && <span className="font-medium text-ink">{item.value}</span>}
             </div>
+
+            {item.details && (
+              <ul className="flex flex-col gap-1">
+                {item.details.map((dt, j) => (
+                  <li key={j} className="flex items-start gap-1.5 text-sm text-ink-soft">
+                    <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-benefit" aria-hidden="true" />
+                    <span className="min-w-0 flex-1 break-words">{dt}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
 
             {item.status === "INDETERMINATE" && item.ask_th && (
               <div className="flex flex-col gap-1.5">
@@ -237,7 +249,7 @@ function BenefitBody({
             )}
 
             {item.apply_at && (
-              <p className="text-xs text-ink-muted">ยื่นที่ {item.apply_at}</p>
+              <p className="text-xs text-ink-muted">ติดต่อ/ยื่นที่ {item.apply_at}</p>
             )}
           </li>
         ))}
@@ -252,6 +264,11 @@ function BenefitBody({
 }
 
 function ValueUnlockBody({ card }: { card: ValueUnlockCard }) {
+  // separate "money you can claim" from "services free at point of use" so the
+  // big number is never confused with the free-service lines.
+  const money = card.lines.filter((l) => l.amount_label);
+  const free = card.lines.filter((l) => !l.amount_label);
+  const bothGroups = money.length > 0 && free.length > 0;
   return (
     <CardFrame
       accent="border-l-benefit"
@@ -261,26 +278,52 @@ function ValueUnlockBody({ card }: { card: ValueUnlockCard }) {
       {card.total_label && (
         <p className="text-2xl font-bold leading-tight text-benefit">{card.total_label}</p>
       )}
-      <ul className="mt-3 flex flex-col gap-2">
-        {card.lines.map((line, i) => (
-          <li key={i} className="flex items-start justify-between gap-3">
-            <div className="min-w-0 flex-1">
-              <p className="text-sm text-ink">{line.label}</p>
-              {line.note && <p className="text-xs text-ink-muted">{line.note}</p>}
-            </div>
-            {line.amount_label && (
-              <span
-                className={cn(
-                  "shrink-0 text-sm font-semibold",
-                  line.tentative ? "text-ink-muted" : "text-benefit"
-                )}
-              >
-                {line.amount_label}
-              </span>
-            )}
-          </li>
-        ))}
-      </ul>
+      {card.subtitle && (
+        <p className="mt-1 text-sm leading-relaxed text-ink-soft">{card.subtitle}</p>
+      )}
+      {money.length > 0 && (
+        <div className="mt-3">
+          {bothGroups && (
+            <p className="mb-1.5 text-xs font-semibold text-ink-muted">เงิน/วงเงินที่มีสิทธิ์ได้รับ</p>
+          )}
+          <ul className="flex flex-col gap-2">
+            {money.map((line, i) => (
+              <li key={i} className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm text-ink">{line.label}</p>
+                  {line.note && <p className="text-xs text-ink-muted">{line.note}</p>}
+                </div>
+                <span
+                  className={cn(
+                    "shrink-0 text-sm font-semibold",
+                    line.tentative ? "text-ink-muted" : "text-benefit"
+                  )}
+                >
+                  {line.amount_label}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {free.length > 0 && (
+        <div className="mt-3">
+          {bothGroups && (
+            <p className="mb-1.5 text-xs font-semibold text-ink-muted">ใช้ฟรีตามสิทธิ์ ไม่ต้องจ่ายเงิน</p>
+          )}
+          <ul className="flex flex-col gap-2">
+            {free.map((line, i) => (
+              <li key={i} className="flex items-start gap-1.5">
+                <Check className="mt-0.5 h-4 w-4 shrink-0 text-benefit" aria-hidden="true" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm text-ink">{line.label}</p>
+                  {line.note && <p className="text-xs text-ink-muted">{line.note}</p>}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       {card.footnote && <p className="mt-3 text-xs text-ink-muted">{card.footnote}</p>}
     </CardFrame>
   );

@@ -3,7 +3,8 @@
 // short-term memory) is loaded from Supabase and fed to the agent each call.
 import { z } from "zod";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { casePassportAgent } from "@/mastra/agents/casePassport";
+import { casePassportAgent, CASE_PASSPORT_INSTRUCTIONS } from "@/mastra/agents/casePassport";
+import { llmJson } from "./llm";
 import { computeValueUnlock } from "./valueUnlock";
 import { deptThai, severityThai, conditionThaiFor } from "./triageLabels";
 import type { Card, PassportData, PassportResult, PrescreenResult, Understood } from "./types";
@@ -49,6 +50,27 @@ const PassportSchema = z.object({
 });
 
 type AgentOut = z.infer<typeof PassportSchema>;
+
+// Models sometimes wrap the whole structured-output object under a spurious key
+// (observed: claude-sonnet-5 emitting {"parameters":{status,...}} to the
+// structured-output tool). Unwrap the first wrapper whose value carries "status".
+const WRAPPER_KEYS = ["parameters", "input", "arguments", "data", "output", "response", "result"];
+
+function coerceAgentOut(raw: unknown): AgentOut | undefined {
+  if (raw === null || typeof raw !== "object") return undefined;
+  let candidate: unknown = raw;
+  if (!("status" in (raw as Record<string, unknown>))) {
+    for (const key of WRAPPER_KEYS) {
+      const inner = (raw as Record<string, unknown>)[key];
+      if (inner !== null && typeof inner === "object" && "status" in (inner as Record<string, unknown>)) {
+        candidate = inner;
+        break;
+      }
+    }
+  }
+  const parsed = PassportSchema.safeParse(candidate);
+  return parsed.success ? parsed.data : undefined;
+}
 
 // summarize stored assistant card JSON into readable lines for the agent
 function cardsToSummary(cards: Card[]): string[] {
@@ -141,10 +163,48 @@ export async function buildPassport(
       structuredOutput: { schema: PassportSchema },
       modelSettings: { maxOutputTokens: 6000 },
     });
+    const rawObject: unknown = (res as { object?: unknown }).object;
     out = (res as { object?: AgentOut }).object;
+    // direct read failed (missing/misshapen) → try unwrapping a wrapper key
+    if (!out || typeof out !== "object" || !("status" in out)) out = coerceAgentOut(rawObject);
   } catch (e) {
     console.error("[passport] agent error:", (e as Error).message);
-    throw e;
+    // Rescue 1 — salvage the raw model output that Mastra attaches to
+    // STRUCTURED_OUTPUT_SCHEMA_VALIDATION_FAILED. Confirmed in @mastra/core
+    // 1.47.0 dist: MastraBaseError sets `this.details` from the error definition
+    // ({ details: { value: JSON.stringify(value) } }) and Agent.generate throws
+    // that MastraError as-is → the string lives at e.details.value. Check
+    // e.cause.details.value too in case a future version wraps the error.
+    const errAny = e as {
+      details?: { value?: unknown };
+      cause?: { details?: { value?: unknown } };
+    };
+    const rawValue = errAny?.details?.value ?? errAny?.cause?.details?.value;
+    if (typeof rawValue === "string") {
+      try {
+        out = coerceAgentOut(JSON.parse(rawValue));
+      } catch {
+        /* raw output not parseable JSON — fall through to rescue 2 */
+      }
+      if (out) console.warn("[passport] salvaged wrapped structured output");
+    }
+    // Rescue 2 — last resort: ask the LLM directly (same instructions, plain
+    // JSON contract). llmJson handles sonnet-5 constraints (no temperature).
+    if (!out) {
+      try {
+        const raw = await llmJson<unknown>(context, null as unknown, {
+          system:
+            CASE_PASSPORT_INSTRUCTIONS +
+            "\n\nตอบเป็น JSON object เดียวเท่านั้น มีฟิลด์: status ('ready'|'need_info'), missing (array, optional), passport (object, optional) ตามที่อธิบายไว้ข้างต้น ห้ามมีข้อความอื่นนอก JSON",
+          maxOutputTokens: 4000,
+        });
+        out = coerceAgentOut(raw);
+        if (out) console.warn("[passport] structured output failed — used direct llmJson fallback");
+      } catch (fallbackErr) {
+        console.error("[passport] llmJson fallback error:", (fallbackErr as Error).message);
+      }
+    }
+    if (!out) throw e;
   }
 
   if (!out || out.status === "need_info" || !out.passport) {

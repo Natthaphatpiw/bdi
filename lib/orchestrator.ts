@@ -83,6 +83,11 @@ function affirmativeAnswerText(answers: Record<string, string>): string {
 // ---- 0b) deterministic merge of structured answers (no NLU → no hallucination)
 function applyAnswers(base: Understood, answers: Record<string, string>): Understood {
   const u: Understood = { ...base };
+  // remember every answered field — "ไม่แน่ใจ" deliberately leaves its slot null
+  // (rule stays INDETERMINATE), and without this marker buildQuestions would
+  // re-ask the same question forever
+  const prevAnswered = (base._answered as string[] | undefined) ?? [];
+  u._answered = [...new Set([...prevAnswered, ...Object.keys(answers)])];
   for (const [field, raw] of Object.entries(answers)) {
     const v = (raw ?? "").trim();
     if (!v) continue;
@@ -247,7 +252,10 @@ function buildQuestions(u: Understood): TurnQuestion[] {
       allow_other: true,
       other_placeholder: "พิมพ์ชื่อเขต/อำเภอ",
     });
-  return qs;
+  // never re-ask a question the user already answered (incl. "ไม่แน่ใจ",
+  // which intentionally leaves its slot null → rule stays INDETERMINATE)
+  const answered = new Set((u._answered as string[] | undefined) ?? []);
+  return qs.filter((q) => !answered.has(q.field));
 }
 
 // ---- 1) NLU: extract structured understanding -------------------------------
@@ -682,10 +690,22 @@ function buildBenefitCard(
     if (rule && oaa) {
       const r = evaluateRule(rule.logic as Record<string, unknown>, attrs);
       ruleTraces.push({ rule: "RULE_OAA", status: r.status, passed: r.trace.filter((t) => t.result === true).map((t) => t.attr), asked: r.missing_attrs });
+      // rules.json units are English ("THB/month"); the age-band fallback string
+      // uses " | " separators — both need the same Thai/bullet treatment
+      const unitTh = (unit: string) =>
+        unit.replace(/THB\/month/i, "บาท/เดือน").replace(/THB\/year/i, "บาท/ปี").replace(/THB/i, "บาท");
+      const oaaSegs = !r.value
+        ? (oaa.value ?? "").split(/\s*\|\s*/).map((s) => s.trim()).filter(Boolean)
+        : [];
       items.push({
         name: oaa.name,
         status: r.status,
-        value: r.value ? `${r.value.amount.toLocaleString()} ${r.value.unit}` : oaa.value,
+        value: r.value
+          ? `${r.value.amount.toLocaleString()} ${unitTh(r.value.unit)}`
+          : oaaSegs.length > 1
+            ? undefined
+            : oaa.value,
+        details: oaaSegs.length > 1 ? oaaSegs : undefined,
         missing: r.missing_attrs,
         ask_th: r.missing_attrs.length ? questionFor(r.missing_attrs[0]) : undefined,
         apply_at: oaa.agency,
@@ -701,6 +721,9 @@ function buildBenefitCard(
   // clearly doesn't apply.
   for (const b of schemeBenefits) {
     if (items.length >= 4) break;
+    // no rule exists for maternity/child benefits — don't show them as "มีสิทธิ์"
+    // to patients whose age makes them clearly inapplicable
+    if ((u.age ?? 0) >= 50 && /คลอดบุตร|สงเคราะห์บุตร/.test(b.name)) continue;
     let status: BenefitCard["items"][number]["status"] = "ELIGIBLE";
     let missing: string[] = [];
     let ask: string | undefined;
@@ -715,10 +738,13 @@ function buildBenefitCard(
       ask = friendly ? questionFor(friendly) : undefined;
       ruleTraces.push({ rule: r.rule_id, status: r.status, passed: r.trace.filter((t) => t.result === true).map((t) => t.attr), asked: r.missing_attrs });
     }
+    // KG values are semicolon-joined lists — break them into scannable bullets.
+    const segs = (b.value ?? "").split(/;\s*/).map((s) => s.trim()).filter(Boolean);
     items.push({
       name: b.name,
       status,
-      value: b.value,
+      value: segs.length > 1 ? undefined : b.value,
+      details: segs.length > 1 ? segs : undefined,
       missing,
       ask_th: ask,
       apply_at: b.apply_at,
@@ -728,7 +754,7 @@ function buildBenefitCard(
   }
 
   if (!items.length) return null;
-  return { type: "benefit", title: "สิทธิประโยชน์ที่อาจได้", items: items.slice(0, 4) };
+  return { type: "benefit", title: "สิทธิประโยชน์ของคุณ", items: items.slice(0, 4) };
 }
 
 async function synthCareBody(
