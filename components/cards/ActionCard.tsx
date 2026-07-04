@@ -12,6 +12,7 @@ import {
   AlertTriangle,
   Phone,
   Navigation,
+  Wallet,
 } from "lucide-react";
 import type {
   Card,
@@ -21,6 +22,7 @@ import type {
   FacilityCard,
   NextStepsCard,
   SafetyCard,
+  ValueUnlockCard,
   EligibilityStatus,
 } from "@/lib/types";
 import { cn } from "@/lib/cn";
@@ -190,21 +192,46 @@ function BenefitBody({
             )}
 
             {item.apply_at && (
-              <p className="text-sm text-ink-soft">ยื่นที่ {item.apply_at}</p>
-            )}
-
-            {item.documents && item.documents.length > 0 && (
-              <div className="no-scrollbar flex gap-2 overflow-x-auto">
-                {item.documents.map((doc, j) => (
-                  <Chip key={j} tone="info">
-                    {doc}
-                  </Chip>
-                ))}
-              </div>
+              <p className="text-xs text-ink-muted">ยื่นที่ {item.apply_at}</p>
             )}
           </li>
         ))}
       </ul>
+    </CardFrame>
+  );
+}
+
+function ValueUnlockBody({ card }: { card: ValueUnlockCard }) {
+  return (
+    <CardFrame
+      accent="border-l-benefit"
+      icon={<Wallet className="h-5 w-5 shrink-0 text-benefit" aria-hidden="true" />}
+      title={card.title}
+    >
+      {card.total_label && (
+        <p className="text-2xl font-bold leading-tight text-benefit">{card.total_label}</p>
+      )}
+      <ul className="mt-3 flex flex-col gap-2">
+        {card.lines.map((line, i) => (
+          <li key={i} className="flex items-start justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <p className="text-sm text-ink">{line.label}</p>
+              {line.note && <p className="text-xs text-ink-muted">{line.note}</p>}
+            </div>
+            {line.amount_label && (
+              <span
+                className={cn(
+                  "shrink-0 text-sm font-semibold",
+                  line.tentative ? "text-ink-muted" : "text-benefit"
+                )}
+              >
+                {line.amount_label}
+              </span>
+            )}
+          </li>
+        ))}
+      </ul>
+      {card.footnote && <p className="mt-3 text-xs text-ink-muted">{card.footnote}</p>}
     </CardFrame>
   );
 }
@@ -346,6 +373,8 @@ export function ActionCard({ card, surface, onQuickAnswer }: ActionCardProps) {
       return <FacilityBody card={card} surface={surface} />;
     case "next_steps":
       return <NextStepsBody card={card} />;
+    case "value_unlock":
+      return <ValueUnlockBody card={card} />;
     case "evidence":
       // evidence is rendered separately by EvidenceDrawer.
       return null;

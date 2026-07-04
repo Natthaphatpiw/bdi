@@ -11,6 +11,7 @@ import type {
   Profile,
   Scheme,
   SessionResponse,
+  TurnQuestion,
   TurnResponse,
   Understood,
 } from "../types";
@@ -44,10 +45,11 @@ export function createSession(channel: "web" | "line"): Promise<SessionResponse>
 }
 
 export interface TurnInputClient {
-  type: "text" | "voice" | "document";
+  type: "text" | "voice" | "document" | "answers";
   text?: string;
   audio?: { data_base64: string; mime: string };
   document_id?: string;
+  answers?: Record<string, string>;
 }
 
 export function turn(
@@ -68,6 +70,7 @@ export interface TurnStreamHandlers {
   onUnderstood?: (u: Understood) => void;
   onCard?: (card: Card) => void;
   onPending?: (question: string, quickReplies?: string[]) => void;
+  onQuestions?: (questions: TurnQuestion[]) => void;
   onDone?: (auditId?: string) => void;
   onError?: (message: string) => void;
 }
@@ -106,6 +109,7 @@ export async function turnStream(
         case "understood": handlers.onUnderstood?.(ev.data); break;
         case "card": handlers.onCard?.(ev.data); break;
         case "pending": handlers.onPending?.(ev.data.question, ev.data.quick_replies); break;
+        case "questions": handlers.onQuestions?.(ev.data); break;
         case "done": handlers.onDone?.(ev.data.audit_id); break;
         case "error": handlers.onError?.(ev.data.message_th); break;
       }

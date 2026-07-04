@@ -1,7 +1,9 @@
 "use client";
+// Pill-style composer (ChatGPT/LINE-like): one rounded container holding
+// [+ attach] [textarea] [mic] [send/stop]. Send becomes a Stop button while
+// the assistant is working.
 import { useEffect, useRef } from "react";
 import { Mic, Plus, Send, Square } from "lucide-react";
-import { IconButton } from "@/components/ui/IconButton";
 import { cn } from "@/lib/cn";
 
 export function InputBar({
@@ -38,59 +40,67 @@ export function InputBar({
   const canSend = value.trim().length > 0 && !disabled && !sending;
 
   return (
-    <div className="sticky bottom-0 z-20 flex items-end gap-2 border-t border-hairline bg-surface p-2 pb-safe">
-      {onAttach && (
-        <IconButton
-          icon={<Plus className="h-5 w-5" aria-hidden="true" />}
-          label="แนบเอกสาร"
-          tone="neutral"
-          onClick={onAttach}
+    <div className="sticky bottom-0 z-20 bg-canvas px-1 pb-safe pt-1">
+      <div className="mb-2 flex items-end gap-1 rounded-[26px] border border-hairline bg-surface py-1.5 pl-1.5 pr-1.5 shadow-card">
+        {onAttach && (
+          <button
+            type="button"
+            aria-label="แนบเอกสาร"
+            onClick={onAttach}
+            disabled={disabled}
+            className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-ink-soft transition-colors hover:bg-canvas disabled:opacity-40"
+          >
+            <Plus className="h-5 w-5" aria-hidden="true" />
+          </button>
+        )}
+        <textarea
+          ref={ref}
+          rows={1}
+          value={value}
           disabled={disabled}
+          placeholder={placeholder}
+          onChange={(e) => onChange(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              if (canSend) onSend();
+            }
+          }}
+          className="max-h-32 min-w-0 flex-1 resize-none self-center border-0 bg-transparent px-2 py-2 text-base text-ink outline-none placeholder:text-ink-muted disabled:opacity-50"
         />
-      )}
-      <textarea
-        ref={ref}
-        rows={1}
-        value={value}
-        disabled={disabled}
-        placeholder={placeholder}
-        onChange={(e) => onChange(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" && !e.shiftKey) {
-            e.preventDefault();
-            if (canSend) onSend();
-          }
-        }}
-        className="max-h-32 flex-1 resize-none rounded-btn border border-hairline px-3 py-2 text-base text-ink placeholder:text-ink-muted focus:border-brand focus:outline-none disabled:opacity-50"
-      />
-      <IconButton
-        icon={<Mic className="h-5 w-5" aria-hidden="true" />}
-        label="พูด"
-        tone="brand"
-        onClick={onMic}
-        disabled={disabled || sending}
-      />
-      {sending ? (
         <button
           type="button"
-          aria-label="หยุด"
-          onClick={onStop}
-          className={cn(
-            "grid h-11 w-11 shrink-0 place-items-center rounded-full bg-brand text-white",
-            "transition-transform active:scale-95"
-          )}
+          aria-label="พูด"
+          onClick={onMic}
+          disabled={disabled || sending}
+          className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-brand transition-colors hover:bg-brand-soft disabled:opacity-40"
         >
-          <Square className="h-4 w-4 fill-current" aria-hidden="true" />
+          <Mic className="h-5 w-5" aria-hidden="true" />
         </button>
-      ) : (
-        <IconButton
-          icon={<Send className="h-5 w-5" aria-hidden="true" />}
-          label="ส่ง"
-          tone="brand"
-          onClick={onSend}
-          disabled={!canSend}
-        />
-      )}
+        {sending ? (
+          <button
+            type="button"
+            aria-label="หยุด"
+            onClick={onStop}
+            className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-ink text-white transition-transform active:scale-95"
+          >
+            <Square className="h-3.5 w-3.5 fill-current" aria-hidden="true" />
+          </button>
+        ) : (
+          <button
+            type="button"
+            aria-label="ส่ง"
+            onClick={onSend}
+            disabled={!canSend}
+            className={cn(
+              "grid h-10 w-10 shrink-0 place-items-center rounded-full transition-all active:scale-95",
+              canSend ? "bg-brand text-white" : "bg-canvas text-ink-muted"
+            )}
+          >
+            <Send className="h-5 w-5" aria-hidden="true" />
+          </button>
+        )}
+      </div>
     </div>
   );
 }

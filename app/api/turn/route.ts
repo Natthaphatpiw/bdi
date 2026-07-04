@@ -57,6 +57,10 @@ export async function POST(req: NextRequest) {
     hasDoc = true;
     documentId = body.input.document_id;
     if (!text) text = "ช่วยอ่านเอกสารที่ฉันอัปโหลด แล้วบอกว่าฉันมีสิทธิ์อะไรบ้าง";
+  } else if (body.input.type === "answers") {
+    if (!body.input.answers || !Object.keys(body.input.answers).length)
+      return ERR.badRequest("ไม่มีคำตอบสำหรับประมวลผล");
+    if (!text) text = Object.values(body.input.answers).join(" · ");
   }
 
   if (!text.trim()) return ERR.badRequest("ไม่มีข้อความสำหรับประมวลผล");
@@ -69,6 +73,7 @@ export async function POST(req: NextRequest) {
     channel: "web",
     hasDoc,
     documentId,
+    answers: body.input.type === "answers" ? body.input.answers : undefined,
   };
 
   // ---- non-streaming (JSON) ----
@@ -87,6 +92,7 @@ export async function POST(req: NextRequest) {
       understood: result.understood,
       pending_question: result.pending_question,
       quick_replies: result.quick_replies,
+      questions: result.questions,
       cards: result.cards,
       audit_id: auditId,
     };
@@ -104,6 +110,7 @@ export async function POST(req: NextRequest) {
         const result = await runTurnStream(ctx, (type, data) => {
           if (type === "understood") send("understood", data);
           else if (type === "card") send("card", data);
+          else if (type === "questions") send("questions", data);
         });
         if (result.pending_question) {
           send("pending", { question: result.pending_question, quick_replies: result.quick_replies });

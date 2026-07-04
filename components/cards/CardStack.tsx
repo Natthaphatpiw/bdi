@@ -23,10 +23,11 @@ function isEmergency(card: Card): card is SafetyCard {
 const ORDER: Record<string, number> = {
   safety: 0,
   care: 1,
-  rights: 2,
-  benefit: 3,
-  facility: 4,
-  next_steps: 5,
+  value_unlock: 2,
+  rights: 3,
+  benefit: 4,
+  facility: 5,
+  next_steps: 6,
 };
 
 export function CardStack({ cards, onQuickAnswer, surface }: CardStackProps) {

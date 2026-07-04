@@ -59,6 +59,15 @@ export interface NextStepsCard {
   title: string;
   checklist: string[];
 }
+// "ปลดล็อกมูลค่าสิทธิ์" — turns scattered entitlements into a understandable
+// yearly value. Amounts are computed ONLY from sourced, rule-engine-backed items.
+export interface ValueUnlockCard {
+  type: "value_unlock";
+  title: string;
+  total_label?: string; // e.g. "อย่างน้อย 7,200 บาท/ปี"
+  lines: { label: string; amount_label?: string; note?: string; tentative?: boolean }[];
+  footnote?: string;
+}
 export interface EvidenceCard {
   type: "evidence";
   title: string;
@@ -74,6 +83,7 @@ export type Card =
   | BenefitCard
   | FacilityCard
   | NextStepsCard
+  | ValueUnlockCard
   | EvidenceCard;
 
 export type CardType = Card["type"];
@@ -92,12 +102,24 @@ export interface Understood {
   [k: string]: unknown;
 }
 
+// ---- structured slot-filling (AskUserQuestion-style, clickable options) ----
+export interface TurnQuestion {
+  field: string; // scheme | age | area | ...
+  label: string; // short Thai label
+  question: string; // full Thai question
+  options: string[];
+  allow_other?: boolean; // shows "อื่นๆ…" free-text option
+  other_placeholder?: string;
+}
+
 // ---- /api/turn ----
 export interface TurnInput {
-  type: "text" | "voice" | "document";
+  type: "text" | "voice" | "document" | "answers";
   text?: string;
   audio?: { data_base64: string; mime: string };
   document_id?: string;
+  /** structured answers to TurnQuestion[] — merged deterministically (no NLU) */
+  answers?: Record<string, string>;
 }
 export interface TurnRequest {
   session_id: string;
@@ -109,6 +131,8 @@ export interface TurnResponse {
   understood: Understood;
   pending_question: string | null;
   quick_replies?: string[];
+  /** when set, the client should show the option panel and wait for answers */
+  questions?: TurnQuestion[];
   cards: Card[];
   audit_id?: string;
 }
@@ -119,6 +143,7 @@ export type TurnStreamEvent =
   | { event: "understood"; data: Understood }
   | { event: "status"; data: { stage: string; message_th?: string } }
   | { event: "pending"; data: { question: string; quick_replies?: string[] } }
+  | { event: "questions"; data: TurnQuestion[] }
   | { event: "card"; data: Card }
   | { event: "done"; data: { audit_id?: string } }
   | { event: "error"; data: ApiError };

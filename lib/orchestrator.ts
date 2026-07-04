@@ -9,6 +9,7 @@ import { runPrescreen } from "./runpod/prescreen";
 import type { PatientCase } from "./runpod/prompt";
 import {
   servicesForScheme,
+  recommendedServices,
   benefitsForScheme,
   searchFacilities,
   comorbidityFor,
@@ -27,6 +28,8 @@ import type {
   BenefitCard,
   EvidenceCard,
   PrescreenResult,
+  TurnQuestion,
+  ValueUnlockCard,
 } from "./types";
 
 const CURRENT_YEAR = new Date().getFullYear();
@@ -39,12 +42,15 @@ export interface TurnContext {
   channel: "web" | "line";
   hasDoc?: boolean;
   documentId?: string;
+  /** structured answers to a previous questions panel — merged without NLU */
+  answers?: Record<string, string>;
 }
 
 export interface TurnResult {
   understood: Understood;
   pending_question: string | null;
   quick_replies?: string[];
+  questions?: TurnQuestion[];
   cards: Card[];
   audit: {
     queries_run: string[];
@@ -54,13 +60,89 @@ export interface TurnResult {
   };
 }
 
+// ---- 0) base slots: prior session slots + profile defaults ------------------
+function baseSlots(ctx: TurnContext): Understood {
+  const base: Understood = { ...ctx.priorSlots };
+  if (ctx.profile.scheme && !base.scheme) base.scheme = ctx.profile.scheme;
+  if (ctx.profile.birth_year && !base.age) base.age = CURRENT_YEAR - ctx.profile.birth_year;
+  return base;
+}
+
+// ---- 0b) deterministic merge of structured answers (no NLU → no hallucination)
+function applyAnswers(base: Understood, answers: Record<string, string>): Understood {
+  const u: Understood = { ...base };
+  for (const [field, raw] of Object.entries(answers)) {
+    const v = (raw ?? "").trim();
+    if (!v) continue;
+    if (field === "scheme") {
+      if (/ประกันสังคม|ประกันตน|มาตรา|SSS/i.test(v)) u.scheme = "SSS";
+      else if (/ข้าราชการ|รัฐวิสาหกิจ|เบิก|CSMBS/i.test(v)) u.scheme = "CSMBS";
+      // บัตรทอง / ไม่แน่ใจ → UCS (สิทธิพื้นฐานตามกฎหมายเมื่อไม่มีสิทธิอื่น)
+      else u.scheme = "UCS";
+    } else if (field === "age") {
+      const nums = v.match(/\d+/g)?.map(Number) ?? [];
+      if (/ต่ำกว่า\s*60/.test(v)) u.age = 50;
+      else if (/ขึ้นไป/.test(v) && nums.length) u.age = nums[0] + 2;
+      else if (nums.length >= 2) u.age = Math.round((nums[0] + nums[1]) / 2);
+      else if (nums.length === 1) u.age = nums[0];
+    } else if (field === "area") {
+      u.area = v.replace(/^เขต\s*/, "").trim();
+    } else {
+      u[field] = v;
+    }
+  }
+  return u;
+}
+
+// ---- 0c) which questions must be answered before the deep analysis ----------
+const SCHEME_OPTIONS = ["บัตรทอง", "ประกันสังคม", "ข้าราชการ", "ไม่แน่ใจ"];
+const AGE_OPTIONS = ["ต่ำกว่า 60 ปี", "60-69 ปี", "70-79 ปี", "80-89 ปี", "90 ปีขึ้นไป"];
+const AREA_OPTIONS = ["บางกะปิ", "ลาดพร้าว", "ห้วยขวาง", "วังทองหลาง"];
+
+function buildQuestions(u: Understood): TurnQuestion[] {
+  const intent = u.intent;
+  const needScheme = ["symptom_triage", "rights_discovery", "benefit_eligibility", "facility_search"].includes(
+    intent ?? ""
+  );
+  const needAge = ["symptom_triage", "benefit_eligibility"].includes(intent ?? "");
+  const needArea = ["symptom_triage", "facility_search"].includes(intent ?? "");
+
+  const qs: TurnQuestion[] = [];
+  if (needScheme && !u.scheme)
+    qs.push({
+      field: "scheme",
+      label: "สิทธิการรักษา",
+      question: "ผู้ป่วยใช้สิทธิการรักษาอะไร",
+      options: SCHEME_OPTIONS,
+      allow_other: true,
+      other_placeholder: "เช่น ประกันเอกชน",
+    });
+  if (needAge && u.age == null)
+    qs.push({
+      field: "age",
+      label: "อายุผู้ป่วย",
+      question: "ผู้ป่วยอายุเท่าไหร่ (ช่วยจับคู่สิทธิ์ เช่น เบี้ยผู้สูงอายุ)",
+      options: AGE_OPTIONS,
+      allow_other: true,
+      other_placeholder: "พิมพ์อายุเป็นตัวเลข",
+    });
+  if (needArea && !u.area)
+    qs.push({
+      field: "area",
+      label: "พื้นที่",
+      question: "อยู่เขต/อำเภอไหน (เพื่อหาสถานพยาบาลใกล้บ้านที่รับสิทธิ์)",
+      options: AREA_OPTIONS,
+      allow_other: true,
+      other_placeholder: "พิมพ์ชื่อเขต/อำเภอ",
+    });
+  return qs;
+}
+
 // ---- 1) NLU: extract structured understanding -------------------------------
 async function extractUnderstanding(
   ctx: TurnContext
 ): Promise<{ u: Understood; freshSymptoms: string[] }> {
-  const base: Understood = { ...ctx.priorSlots };
-  if (ctx.profile.scheme && !base.scheme) base.scheme = ctx.profile.scheme;
-  if (ctx.profile.birth_year && !base.age) base.age = CURRENT_YEAR - ctx.profile.birth_year;
+  const base = baseSlots(ctx);
 
   const prompt = `คุณเป็นตัวสกัดข้อมูล (information extraction) จากข้อความสุขภาพภาษาไทย ตอบเป็น JSON เท่านั้น
 กฎเด็ดขาด:
@@ -156,7 +238,7 @@ function buildAttrs(u: Understood, profile: Profile): Record<string, unknown> {
 // `emit` fires for `understood` and for each card the moment its tool finishes,
 // so the UI fills in live (ChatGPT-style). Cards are re-pinned to canonical order
 // client-side (CardStack), so streaming arrival order doesn't matter.
-export type StreamEmit = (type: "understood" | "card", data: unknown) => void;
+export type StreamEmit = (type: "understood" | "card" | "questions", data: unknown) => void;
 const NOOP_EMIT: StreamEmit = () => {};
 
 export async function runTurnStream(
@@ -172,61 +254,115 @@ export async function runTurnStream(
     emit("card", card);
   };
 
-  // (1) deterministic safety pre-check (instant)
+  // (1) deterministic safety pre-check (instant — runs even before questions)
   const pre = safetyPreCheck(ctx.text);
-
-  // (2) NLU
-  const { u, freshSymptoms } = await extractUnderstanding(ctx);
-  emit("understood", u);
-  const scheme = u.scheme as Scheme | undefined;
-  const attrs = buildAttrs(u, ctx.profile);
-
   if (pre.card) push(pre.card);
 
-  // Only (re)run the 27B when THIS turn brings new symptoms (slot answers skip it).
-  const wantSymptom = freshSymptoms.length > 0;
+  // (2) understanding: structured answers merge deterministically (no NLU),
+  //     free text goes through guarded NLU extraction.
+  let u: Understood;
+  if (ctx.answers && Object.keys(ctx.answers).length) {
+    u = applyAnswers(baseSlots(ctx), ctx.answers);
+    queries_run.push("answers_merge(deterministic)");
+  } else {
+    ({ u } = await extractUnderstanding(ctx));
+  }
+  emit("understood", u);
+
+  // (3) GATE — if the screening/rights matching still lacks required info,
+  //     ask ALL missing questions at once (clickable options + อื่นๆ) and stop.
+  //     No half-baked answers: the deep analysis runs only when data is complete.
+  const questions = buildQuestions(u);
+  if (questions.length) {
+    emit("questions", questions);
+    return {
+      understood: u,
+      pending_question: null,
+      questions,
+      cards, // safety card only (if emergency)
+      audit: { queries_run, rule_traces: [], citations: [], prescreen_result: null },
+    };
+  }
+
+  const scheme = u.scheme as Scheme | undefined;
+  const attrs = buildAttrs(u, ctx.profile);
   const symptomsText = (u.symptoms ?? []).join(" ") + " " + ctx.text;
 
-  // captured for the post-barrier synthesis
+  // (4) PRESCREEN FIRST (ThaiLLM-27B + rails) — the screening result drives
+  //     which rights we show. Re-run only when the symptom set changed.
+  const symKey = (u.symptoms ?? []).join("|");
+  const needPrescreen = (u.symptoms?.length ?? 0) > 0 && u._prescreened_symptoms !== symKey;
   let prescreen: PrescreenResult | null = null;
+
+  if (needPrescreen) {
+    prescreen = await runPrescreen({
+      patientCase: buildCase(u, ctx.profile, ctx.text),
+      symptomsText,
+    });
+    u._prescreened_symptoms = symKey; // persisted via session_state
+    queries_run.push(`prescreen(${prescreen.source})+rails`);
+    if (prescreen.escalate_hotline) {
+      push(emergencyCardFromHotline(prescreen.safety_note, prescreen.escalate_hotline, prescreen.red_flags));
+    }
+  }
+
+  // condition in focus (from the 27B mapping, else the mentioned condition)
+  const condId =
+    prescreen?.condition_id || (u.condition_hint ? condIdFromHint(u.condition_hint) : "");
+
+  // captured for the post-barrier synthesis
   let benefitCard: BenefitCard | null = null;
   let hasFacility = false;
+  const isSymptomFlow = u.intent === "symptom_triage" || (u.symptoms?.length ?? 0) > 0;
 
   const tasks: Promise<void>[] = [];
 
-  // prescreen → emergency(escalate) + care card (streams when 27B/Gemini returns)
-  if (wantSymptom) {
+  // care card — consultative text from the screening result
+  if (prescreen) {
+    const pr = prescreen;
     tasks.push(
       (async () => {
-        const pr = await runPrescreen({
-          patientCase: buildCase(u, ctx.profile, ctx.text),
-          symptomsText,
-        });
-        prescreen = pr;
-        queries_run.push(`prescreen(${pr.source})+rails`);
-        if (pr.escalate_hotline) {
-          push(emergencyCardFromHotline(pr.safety_note, pr.escalate_hotline, pr.red_flags));
-        }
-        const comorbid =
-          u.condition_hint && scheme
-            ? await comorbidityFor(condIdFromHint(u.condition_hint), scheme)
-            : [];
+        const comorbid = condId && scheme ? await comorbidityFor(condId, scheme) : [];
         const careBody = await synthCareBody(u, pr, comorbid);
-        push({ type: "care", title: "วันนี้ควรทำอะไร", body: careBody, department: deptThai(pr.department) });
+        push({
+          type: "care",
+          title: "ผลคัดกรองเบื้องต้น — วันนี้ควรทำอะไร",
+          body: careBody,
+          department: deptThai(pr.department),
+        });
       })()
     );
   }
 
-  // rights
+  // rights — RELEVANT ONLY: services the KG recommends for the screened
+  // condition; fall back to age-appropriate essentials, never the whole catalog.
   if (scheme) {
     tasks.push(
       (async () => {
-        const services = await servicesForScheme(scheme);
-        queries_run.push(`R1 services(${scheme})`);
+        let services =
+          isSymptomFlow && (condId || prescreen?.disease)
+            ? await recommendedServices({
+                conditionId: condId || undefined,
+                diseaseNameEn: prescreen?.disease ?? undefined,
+                scheme,
+              })
+            : [];
+        let title = `สิทธิ์ที่เกี่ยวกับเคสนี้ (${SCHEME_LABELS[scheme] ?? scheme})`;
+        if (!services.length) {
+          const all = await servicesForScheme(scheme);
+          const age = u.age ?? 99;
+          services = all.filter((s) => {
+            const min = parseInt(String((s as { age_min?: string }).age_min ?? "0"), 10) || 0;
+            return min <= age;
+          });
+          if (isSymptomFlow) services = services.slice(0, 4);
+          else title = `สิทธิ์ที่ครอบคลุม (${SCHEME_LABELS[scheme] ?? scheme})`;
+        }
+        queries_run.push(isSymptomFlow ? `R1 recommended(${scheme})` : `R1 services(${scheme})`);
         if (services.length) {
           push({
             type: "rights",
-            title: `สิทธิ์ที่ครอบคลุม (${SCHEME_LABELS[scheme] ?? scheme})`,
+            title,
             items: services.slice(0, 6).map((s) => ({
               name: s.name,
               copay: s.copay || "ไม่มีค่าใช้จ่าย",
@@ -241,14 +377,20 @@ export async function runTurnStream(
     );
   }
 
-  // benefit (rule engine) — also covers the universal elder benefit by age
+  // benefit (rule engine) + value-unlock — for symptom flow keep only benefits
+  // relevant to being sick (no maternity/death/child dumps).
   if (scheme || (u.age ?? 0) >= 55) {
     tasks.push(
       (async () => {
-        const benefits = scheme ? await benefitsForScheme(scheme) : [];
+        let benefits = scheme ? await benefitsForScheme(scheme) : [];
         if (scheme) queries_run.push(`R2 benefits(${scheme})`);
+        if (isSymptomFlow) {
+          benefits = benefits.filter((b) => /SICK|MEDICAL|HEALTH|DENTAL/i.test(b.benefit_id));
+        }
         benefitCard = buildBenefitCard(u, scheme, benefits, attrs, ruleTraces, citations);
         if (benefitCard) push(benefitCard);
+        const value = buildValueUnlockCard(u, scheme, attrs);
+        if (value) push(value);
       })()
     );
   }
@@ -257,11 +399,11 @@ export async function runTurnStream(
   if (scheme) {
     tasks.push(
       (async () => {
-        const facilities = await searchFacilities({ scheme, area: u.area, conditionId: u.condition_hint });
+        const facilities = await searchFacilities({ scheme, area: u.area, conditionId: condId || undefined });
         queries_run.push(`facility_match(${scheme})`);
         if (facilities.length) {
           hasFacility = true;
-          push({ type: "facility", title: "ไปที่ไหน", items: facilities });
+          push({ type: "facility", title: "ไปที่ไหน", items: facilities.slice(0, 2) });
         }
       })()
     );
@@ -305,12 +447,9 @@ export async function runTurnStream(
       "คำแนะนำเบื้องต้น ไม่ใช่การวินิจฉัยแทนแพทย์ · สิทธิ์ตัดสินด้วย rule engine (ไม่ใช่ AI) · ไม่เก็บข้อมูลส่วนตัวถ้าไม่ยินยอม",
   });
 
-  const pending = decidePending(u, cards);
-
   return {
     understood: u,
-    pending_question: pending.question,
-    quick_replies: pending.quickReplies,
+    pending_question: null,
     cards,
     audit: {
       queries_run,
@@ -318,6 +457,68 @@ export async function runTurnStream(
       citations: dedupeCitations(citations),
       prescreen_result: prescreen,
     },
+  };
+}
+
+// ---- value unlock: "สิทธิ์ที่มีอยู่แล้ว คิดเป็นเงินเท่าไหร่/ปี" -----------------
+// Conservative & sourced: only rule-engine-backed amounts are summed. The
+// screening-package line carries no number (no reliable market price source).
+function buildValueUnlockCard(
+  u: Understood,
+  scheme: Scheme | undefined,
+  attrs: Record<string, unknown>
+): ValueUnlockCard | null {
+  const lines: ValueUnlockCard["lines"] = [];
+  let definite = 0;
+  let tentative = 0;
+
+  if ((u.age ?? 0) >= 60) {
+    const rule = getRule("RULE_OAA");
+    if (rule) {
+      const r = evaluateRule(rule.logic as Record<string, unknown>, attrs);
+      if (r.value && (r.status === "ELIGIBLE" || r.status === "INDETERMINATE")) {
+        const yearly = r.value.amount * 12;
+        const label = `เบี้ยยังชีพผู้สูงอายุ (${r.value.amount.toLocaleString()} × 12 เดือน)`;
+        if (r.status === "ELIGIBLE") {
+          lines.push({ label, amount_label: `${yearly.toLocaleString()} บาท/ปี` });
+          definite += yearly;
+        } else {
+          lines.push({
+            label,
+            amount_label: `${yearly.toLocaleString()} บาท/ปี`,
+            note: "รอยืนยันเงื่อนไข เช่น ไม่ได้รับบำนาญซ้ำซ้อน",
+            tentative: true,
+          });
+          tentative += yearly;
+        }
+      }
+    }
+  }
+
+  if (scheme === "SSS") {
+    lines.push({ label: "ค่าทันตกรรมประกันสังคม", amount_label: "900 บาท/ปี" });
+    definite += 900;
+  }
+
+  const numericCount = lines.length;
+  lines.push({
+    label: "สิทธิ์ตรวจ/คัดกรองโรคเรื้อรังที่รัฐครอบคลุม (น้ำตาล/ความดัน/ตา/ไต/เท้า)",
+    note: "ไม่มีค่าใช้จ่ายเมื่อใช้ตามสิทธิ",
+  });
+  if (!numericCount) return null;
+
+  const total = definite + tentative;
+  const total_label =
+    `อย่างน้อย ${total.toLocaleString()} บาท/ปี` +
+    (definite === 0 && tentative > 0 ? " (รอยืนยันเงื่อนไข)" : "");
+
+  return {
+    type: "value_unlock",
+    title: "มูลค่าสิทธิ์ที่อาจยังไม่ได้ใช้",
+    total_label,
+    lines,
+    footnote:
+      "นับเฉพาะรายการที่มีแหล่งอ้างอิงและเกณฑ์ชัดเจน ยอดจริงขึ้นกับการใช้สิทธิ · ยังไม่รวมมูลค่าการตรวจคัดกรองที่รัฐครอบคลุม",
   };
 }
 
@@ -468,29 +669,6 @@ function severityThai(s: string): string {
     Emergency: "ฉุกเฉิน ไปทันที",
   };
   return m[s] ?? s;
-}
-
-const SCHEME_INTENTS: (Intent | undefined)[] = [
-  "symptom_triage",
-  "rights_discovery",
-  "rights_lookup",
-  "facility_search",
-  "benefit_eligibility",
-];
-
-function decidePending(u: Understood, cards: Card[]): { question: string | null; quickReplies?: string[] } {
-  // Knowing the scheme unlocks rights / benefit / facility cards — so if it's
-  // still missing for a rights-relevant intent, ask for it (one short question).
-  if (!u.scheme && SCHEME_INTENTS.includes(u.intent)) {
-    const hasContent = cards.some((c) => c.type !== "evidence" && c.type !== "safety");
-    return {
-      question: hasContent
-        ? "เพื่อบอกสิทธิ์ที่ครอบคลุมและสถานพยาบาลที่ใช่ ขอทราบสิทธิการรักษาของคุณหน่อยค่ะ"
-        : "ขอทราบสิทธิการรักษาของคุณหน่อยค่ะ ใช้สิทธิอะไร?",
-      quickReplies: ["บัตรทอง", "ประกันสังคม", "ข้าราชการ", "ไม่แน่ใจ"],
-    };
-  }
-  return { question: null };
 }
 
 function dedupeCitations(cs: { title: string; url: string; publisher: string }[]) {

@@ -62,11 +62,11 @@ export function RightsScreen({ surface, basePath }: Props) {
   }, [toast]);
 
   const ensureSession = useCallback(async (): Promise<string> => {
-    if (sessionId) return sessionId;
+    // fresh session each load — reusing an old one can carry stale slots
     const res = await createSession(surface === "line" ? "line" : "web");
     setSessionId(res.session_id);
     return res.session_id;
-  }, [sessionId, surface, setSessionId]);
+  }, [surface, setSessionId]);
 
   const loadRights = useCallback(async () => {
     setLoading(true);

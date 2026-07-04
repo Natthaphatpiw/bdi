@@ -5,16 +5,18 @@
 // plus a voice overlay and a sticky input bar.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { IdCard } from "lucide-react";
+import { IdCard, SquarePen } from "lucide-react";
 import { ChatBubble } from "@/components/chat/ChatBubble";
 import { UnderstoodChips } from "@/components/chat/UnderstoodChips";
 import { QuickReplies } from "@/components/chat/QuickReplies";
+import { QuestionPanel } from "@/components/chat/QuestionPanel";
 import { InputBar } from "@/components/chat/InputBar";
 import { VoiceOverlay } from "@/components/chat/VoiceOverlay";
 import { ThinkingDots } from "@/components/chat/ThinkingDots";
 import { CardStack } from "@/components/cards/CardStack";
 import { PassportModal } from "@/components/passport/PassportModal";
 import { Button } from "@/components/ui/Button";
+import { IconButton } from "@/components/ui/IconButton";
 import {
   createSession,
   getMessages,
@@ -22,7 +24,7 @@ import {
   turnStream,
   type TurnInputClient,
 } from "@/lib/client/api";
-import type { Card, Understood } from "@/lib/types";
+import type { Card, TurnQuestion, Understood } from "@/lib/types";
 import { useUi } from "@/store/ui";
 import { useToast } from "@/store/toast";
 import { useAuth } from "@/lib/client/auth";
@@ -40,6 +42,8 @@ type ChatItem =
       cards: Card[];
       understood?: Understood;
       pending?: PendingPrompt;
+      questions?: TurnQuestion[];
+      questionsAnswered?: boolean;
       thinking: boolean;
       error?: string;
       stopped?: boolean;
@@ -81,7 +85,6 @@ export function ChatScreen({
   const router = useRouter();
   const toast = useToast();
   const { ready } = useAuth();
-  const storedSessionId = useUi((s) => s.sessionId);
   const setSessionId = useUi((s) => s.setSessionId);
 
   const [messages, setMessages] = useState<ChatItem[]>([]);
@@ -103,7 +106,7 @@ export function ChatScreen({
 
   // --- send a turn ----------------------------------------------------------
   const send = useCallback(
-    async (rawText: string) => {
+    async (rawText: string, answers?: Record<string, string>) => {
       const text = rawText.trim();
       if (!text) return;
       const sid = sessionRef.current;
@@ -127,9 +130,11 @@ export function ChatScreen({
           prev.map((m) => (m.kind === "assistant" && m.id === assistantId ? fn(m) : m))
         );
 
-      const turnInput: TurnInputClient = documentId
-        ? { type: "document", text, document_id: documentId }
-        : { type: "text", text };
+      const turnInput: TurnInputClient = answers
+        ? { type: "answers", answers, text }
+        : documentId
+          ? { type: "document", text, document_id: documentId }
+          : { type: "text", text };
 
       const controller = new AbortController();
       abortRef.current = controller;
@@ -145,6 +150,8 @@ export function ChatScreen({
               patchAssistant((m) => ({ ...m, thinking: false, cards: [...m.cards, card] })),
             onPending: (question, quickReplies) =>
               patchAssistant((m) => ({ ...m, thinking: false, pending: { question, quickReplies } })),
+            onQuestions: (questions) =>
+              patchAssistant((m) => ({ ...m, thinking: false, questions })),
             onError: (message) => {
               toast(message, "error");
               patchAssistant((m) => ({ ...m, thinking: false, error: message }));
@@ -165,6 +172,7 @@ export function ChatScreen({
               thinking: false,
               understood: resp.understood,
               cards: resp.cards,
+              questions: resp.questions,
               pending: resp.pending_question
                 ? { question: resp.pending_question, quickReplies: resp.quick_replies }
                 : undefined,
@@ -222,10 +230,9 @@ export function ChatScreen({
                 }
           );
           setMessages(hydrated);
-        } else if (storedSessionId) {
-          sessionRef.current = storedSessionId;
-          if (!cancelled) setActiveSession(storedSessionId);
         } else {
+          // Always start a FRESH session — reusing an old one lets stale slots
+          // (e.g. a previously-guessed age/scheme) pollute the new conversation.
           const { session_id } = await createSession(surface === "line" ? "line" : "web");
           if (cancelled) return;
           sessionRef.current = session_id;
@@ -243,19 +250,19 @@ export function ChatScreen({
     return () => {
       cancelled = true;
     };
-  }, [ready, sessionIdProp, storedSessionId, surface, setSessionId, toast]);
+  }, [ready, sessionIdProp, surface, setSessionId, toast]);
 
   // --- auto-send the initial query once a session exists ---------------------
   useEffect(() => {
     if (autoSentRef.current) return;
     if (!activeSession) return;
     // Don't auto-seed when resuming an existing/persisted conversation.
-    if (sessionIdProp || storedSessionId) return;
+    if (sessionIdProp) return;
     const seed = initialText?.trim() || intentSeed(intentHint);
     if (!seed) return;
     autoSentRef.current = true;
     void send(seed);
-  }, [activeSession, initialText, intentHint, sessionIdProp, storedSessionId, send]);
+  }, [activeSession, initialText, intentHint, sessionIdProp, send]);
 
   // --- auto-scroll to bottom on new content ----------------------------------
   useEffect(() => {
@@ -269,21 +276,58 @@ export function ChatScreen({
     setInput("");
   };
 
+  // Answer a QuestionPanel: mark it answered, then send the structured answers.
+  const answerQuestions = useCallback(
+    (itemId: number, answers: Record<string, string>, summary: string) => {
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.kind === "assistant" && m.id === itemId ? { ...m, questionsAnswered: true } : m
+        )
+      );
+      void send(summary, answers);
+    },
+    [send]
+  );
+
+  // Start over with a clean session (prevents stale slots from old chats).
+  const newChat = useCallback(async () => {
+    if (sending) stop();
+    try {
+      const { session_id } = await createSession(surface === "line" ? "line" : "web");
+      sessionRef.current = session_id;
+      setActiveSession(session_id);
+      setSessionId(session_id);
+      setMessages([]);
+      setInput("");
+      autoSentRef.current = true; // don't re-fire the seeded first message
+    } catch {
+      toast("เริ่มแชตใหม่ไม่สำเร็จ ลองอีกครั้ง", "error");
+    }
+  }, [sending, stop, surface, setSessionId, toast]);
+
   const hasConversation = messages.some((m) => m.kind === "assistant" && m.cards.length > 0);
 
   return (
     <div className="flex min-h-[60vh] flex-col">
       {hasConversation && activeSession && (
-        <div className="sticky top-0 z-10 -mx-4 mb-2 border-b border-hairline bg-canvas/90 px-4 py-2 backdrop-blur">
-          <Button
-            variant="outline"
-            size="md"
-            fullWidth
-            onClick={() => setPassportOpen(true)}
-            leftIcon={<IdCard className="h-4 w-4" aria-hidden="true" />}
-          >
-            สร้าง Case Passport — ใบสรุปยื่นโรงพยาบาล
-          </Button>
+        <div className="sticky top-0 z-10 -mx-4 mb-2 flex items-center gap-2 border-b border-hairline bg-canvas/90 px-4 py-2 backdrop-blur">
+          <div className="min-w-0 flex-1">
+            <Button
+              variant="outline"
+              size="md"
+              fullWidth
+              onClick={() => setPassportOpen(true)}
+              leftIcon={<IdCard className="h-4 w-4" aria-hidden="true" />}
+            >
+              สร้าง Case Passport
+            </Button>
+          </div>
+          <IconButton
+            icon={<SquarePen className="h-5 w-5" aria-hidden="true" />}
+            label="เริ่มแชตใหม่"
+            tone="neutral"
+            onClick={() => void newChat()}
+          />
         </div>
       )}
 
@@ -325,6 +369,15 @@ export function ChatScreen({
 
               {item.stopped && (
                 <p className="px-1 text-sm text-ink-muted">หยุดการประมวลผลแล้ว</p>
+              )}
+
+              {item.questions && item.questions.length > 0 && (
+                <QuestionPanel
+                  questions={item.questions}
+                  submitted={item.questionsAnswered}
+                  disabled={sending}
+                  onSubmit={(answers, summary) => answerQuestions(item.id, answers, summary)}
+                />
               )}
 
               {item.pending && (

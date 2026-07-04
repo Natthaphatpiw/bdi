@@ -133,6 +133,43 @@ export async function servicesForScheme(scheme: Scheme): Promise<CoveredService[
     }));
 }
 
+// ---- relevance-first: services the KG RECOMMENDS for a condition ------------
+// Used after prescreen so the rights card shows only what matters for THIS case
+// (e.g. diabetes → HbA1c/eye/kidney/foot) instead of the whole catalog.
+export async function recommendedServices(params: {
+  conditionId?: string;
+  diseaseNameEn?: string;
+  scheme: Scheme;
+}): Promise<CoveredService[]> {
+  const { conditionId = "", diseaseNameEn = "", scheme } = params;
+  if (!conditionId && !diseaseNameEn) return [];
+  const rows = await readCypher<{
+    service_id: string;
+    name: string;
+    type: string;
+    copay: string;
+    interval: number | null;
+  }>(
+    `MATCH (c:Condition)-[:RECOMMENDS]->(s:Service)-[cov:COVERED_BY]->(r:HealthRight {code:$scheme})
+     WHERE ($conditionId <> '' AND c.condition_id = $conditionId)
+        OR ($disease <> '' AND c.disease_name_en = $disease)
+     RETURN DISTINCT coalesce(s.service_id, elementId(s)) AS service_id,
+            coalesce(s.name, s.service_name_th) AS name,
+            s.service_type AS type,
+            coalesce(cov.copay, s.copay, 'ไม่มีค่าใช้จ่าย') AS copay,
+            toInteger(s.interval_months) AS interval
+     LIMIT 6`,
+    { conditionId, disease: diseaseNameEn, scheme }
+  );
+  return rows.map((r) => ({
+    service_id: r.service_id,
+    name: r.name,
+    type: r.type,
+    copay: r.copay || "ไม่มีค่าใช้จ่าย",
+    interval: intervalText(r.interval ?? undefined),
+  }));
+}
+
 // ---- R2: benefits under a scheme (benefit card source) ---------------------
 export interface SchemeBenefit {
   benefit_id: string;
