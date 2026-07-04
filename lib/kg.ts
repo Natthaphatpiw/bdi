@@ -91,6 +91,7 @@ export interface CoveredService {
   copay: string;
   interval?: string;
   facilities?: string[];
+  age_min?: number;
 }
 export async function servicesForScheme(scheme: Scheme): Promise<CoveredService[]> {
   const rows = await readCypher<{
@@ -99,6 +100,7 @@ export async function servicesForScheme(scheme: Scheme): Promise<CoveredService[
     type: string;
     copay: string;
     interval: number | null;
+    age_min: number | null;
     facilities: string[];
   }>(
     `MATCH (r:HealthRight {code:$scheme})<-[cov:COVERED_BY]-(s:Service)
@@ -107,6 +109,7 @@ export async function servicesForScheme(scheme: Scheme): Promise<CoveredService[
             coalesce(s.name, s.service_name_th) AS name,
             s.service_type AS type, coalesce(cov.copay, s.copay, 'ไม่มีค่าใช้จ่าย') AS copay,
             toInteger(s.interval_months) AS interval,
+            toInteger(s.eligible_age_min) AS age_min,
             collect(DISTINCT coalesce(f.name, f.name_th))[..3] AS facilities
      ORDER BY type`,
     { scheme }
@@ -118,6 +121,7 @@ export async function servicesForScheme(scheme: Scheme): Promise<CoveredService[
       type: r.type,
       copay: r.copay || "ไม่มีค่าใช้จ่าย",
       interval: intervalText(r.interval ?? undefined),
+      age_min: r.age_min ?? undefined,
       facilities: (r.facilities || []).filter(Boolean),
     }));
   }
@@ -130,18 +134,22 @@ export async function servicesForScheme(scheme: Scheme): Promise<CoveredService[
       type: s.type,
       copay: s.copay || "ไม่มีค่าใช้จ่าย",
       interval: intervalText(s.interval_months),
+      age_min: s.age_min ? parseInt(s.age_min, 10) || undefined : undefined,
     }));
 }
 
 // ---- relevance-first: services the KG RECOMMENDS for a condition ------------
 // Used after prescreen so the rights card shows only what matters for THIS case
 // (e.g. diabetes → HbA1c/eye/kidney/foot) instead of the whole catalog.
+// AGE-FILTERED: a service with eligible_age_min above the patient's age is
+// excluded (no elder-screening package for a 26-year-old).
 export async function recommendedServices(params: {
   conditionId?: string;
   diseaseNameEn?: string;
   scheme: Scheme;
+  age?: number;
 }): Promise<CoveredService[]> {
-  const { conditionId = "", diseaseNameEn = "", scheme } = params;
+  const { conditionId = "", diseaseNameEn = "", scheme, age } = params;
   if (!conditionId && !diseaseNameEn) return [];
   const rows = await readCypher<{
     service_id: string;
@@ -151,15 +159,17 @@ export async function recommendedServices(params: {
     interval: number | null;
   }>(
     `MATCH (c:Condition)-[:RECOMMENDS]->(s:Service)-[cov:COVERED_BY]->(r:HealthRight {code:$scheme})
-     WHERE ($conditionId <> '' AND c.condition_id = $conditionId)
-        OR ($disease <> '' AND c.disease_name_en = $disease)
+     WHERE (($conditionId <> '' AND c.condition_id = $conditionId)
+        OR ($disease <> '' AND c.disease_name_en = $disease))
+       AND (s.eligible_age_min IS NULL OR s.eligible_age_min = '' OR toInteger(s.eligible_age_min) <= $age)
+       AND (s.eligible_age_max IS NULL OR s.eligible_age_max = '' OR toInteger(s.eligible_age_max) >= $age)
      RETURN DISTINCT coalesce(s.service_id, elementId(s)) AS service_id,
             coalesce(s.name, s.service_name_th) AS name,
             s.service_type AS type,
             coalesce(cov.copay, s.copay, 'ไม่มีค่าใช้จ่าย') AS copay,
             toInteger(s.interval_months) AS interval
      LIMIT 6`,
-    { conditionId, disease: diseaseNameEn, scheme }
+    { conditionId, disease: diseaseNameEn, scheme, age: age ?? 999 }
   );
   return rows.map((r) => ({
     service_id: r.service_id,

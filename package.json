@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@ai-sdk/google": "^4.0.3",
+    "@anthropic-ai/sdk": "^0.110.0",
     "@google/genai": "^2.10.0",
     "@line/liff": "^2.25.1",
     "@mastra/core": "^1.47.0",

@@ -1,11 +1,28 @@
 import { Agent } from "@mastra/core/agent";
 
-// Bridge our GEMINI_API_KEY to the env var Mastra's Google model router expects.
+// Bridge our env vars to what Mastra's model router expects.
+if (!process.env.ANTHROPIC_API_KEY && process.env.CLAUDE_API_KEY) {
+  process.env.ANTHROPIC_API_KEY = process.env.CLAUDE_API_KEY;
+}
+// Mastra's models.dev gateway resolves the anthropic base URL WITHOUT /v1
+// (requests hit api.anthropic.com/messages → 404). Its buildUrl honors
+// ANTHROPIC_BASE_URL — but the host environment may already export one without
+// /v1 (OS env beats .env.local in Next), so NORMALIZE rather than set-if-absent.
+// (lib/llm.ts passes an explicit baseURL to the official SDK, so this env var
+// cannot affect our direct Claude calls.)
+{
+  const abu = process.env.ANTHROPIC_BASE_URL?.replace(/\/+$/, "");
+  if (!abu) process.env.ANTHROPIC_BASE_URL = "https://api.anthropic.com/v1";
+  else if (!/\/v\d+$/.test(abu)) process.env.ANTHROPIC_BASE_URL = `${abu}/v1`;
+}
 if (!process.env.GOOGLE_GENERATIVE_AI_API_KEY && process.env.GEMINI_API_KEY) {
   process.env.GOOGLE_GENERATIVE_AI_API_KEY = process.env.GEMINI_API_KEY;
 }
 
-const MODEL = `google/${process.env.GEMINI_MODEL || "gemini-3.5-flash"}`;
+// Claude sonnet-5 primary; Gemini only when no Claude key is configured.
+const MODEL = process.env.CLAUDE_API_KEY || process.env.ANTHROPIC_API_KEY
+  ? `anthropic/${process.env.CLAUDE_MODEL || "claude-sonnet-5"}`
+  : `google/${process.env.GEMINI_MODEL || "gemini-3.5-flash"}`;
 
 // The Case Passport agent: reads a consultation session and either (a) decides
 // more info is needed and asks for it, or (b) structures a concise summary card

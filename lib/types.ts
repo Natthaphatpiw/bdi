@@ -110,6 +110,8 @@ export interface TurnQuestion {
   options: string[];
   allow_other?: boolean; // shows "อื่นๆ…" free-text option
   other_placeholder?: string;
+  /** show only when an earlier answer matches (client-side conditional step) */
+  show_if?: { field: string; any_of: string[] };
 }
 
 // ---- /api/turn ----
@@ -187,7 +189,7 @@ export interface PrescreenResult {
   rails_applied: string[];
   safety_note: string;
   usage?: unknown;
-  source: "runpod" | "gemini" | "mock";
+  source: "runpod" | "claude" | "gemini" | "mock";
 }
 
 // ---- facilities ----
@@ -268,6 +270,20 @@ export interface PassportData {
   questions_for_provider?: string[];
   hotlines?: { number: string; name: string }[];
   notes?: string;
+  /** deterministic (rule-engine) unclaimed-entitlement value — never from the LLM */
+  unclaimed_value?: {
+    total_label: string;
+    lines: { label: string; amount_label?: string; note?: string; tentative?: boolean }[];
+  };
+  /** the actual triage result from the 27B prescreen (pulled from audit_log) */
+  screening?: {
+    condition_th?: string;
+    disease_en?: string;
+    department?: string;
+    severity?: string;
+    red_flags?: string[];
+    screened_by?: string;
+  };
   disclaimer: string;
 }
 

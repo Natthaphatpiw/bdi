@@ -1,8 +1,9 @@
 // The orchestrator — turns one health story into ordered AnswerCards.
-// Pipeline (product-architecture.md §4): safety pre-check → NLU (Gemini) →
-// prescreen (RunPod 27B + rails) ∥ KG (template-first) ∥ rule engine → synthesis.
+// Pipeline (product-architecture.md §4): safety pre-check → NLU (Claude sonnet-5,
+// Gemini fallback) → prescreen (RunPod 27B + rails) ∥ KG ∥ rule engine → synthesis.
 // Deterministic facts come from KG + rule engine; the LLM only verbalizes.
-import { geminiJson, safeParseJson, geminiText } from "./gemini";
+import { safeParseJson } from "./gemini";
+import { llmJson, llmText } from "./llm";
 import { featureFlags } from "./env";
 import { safetyPreCheck, emergencyCardFromHotline } from "./safety";
 import { runPrescreen } from "./runpod/prescreen";
@@ -19,6 +20,8 @@ import {
 } from "./kg";
 import { evaluateRule, getRule, evaluateBenefit, questionFor, ATTR_QUESTIONS_TH } from "./ruleEngine";
 import { retrieveKgChunks, retrieveUserDocs } from "./retrieve";
+import { computeValueUnlock } from "./valueUnlock";
+import { deptThai, severityThai } from "./triageLabels";
 import type {
   Card,
   Understood,
@@ -87,6 +90,26 @@ function applyAnswers(base: Understood, answers: Record<string, string>): Unders
       else if (nums.length === 1) u.age = nums[0];
     } else if (field === "area") {
       u.area = v.replace(/^เขต\s*/, "").trim();
+    } else if (field === "pension") {
+      // เบี้ยผู้สูงอายุ disqualifier: รับบำนาญ/เบี้ยหวัดจากรัฐอยู่ไหม
+      if (/ไม่ได้รับ|ไม่รับ|ไม่มี/.test(v)) u.receives_state_pension = false;
+      else if (/ได้รับ|รับอยู่|มี/.test(v)) u.receives_state_pension = true;
+      // ไม่แน่ใจ → leave unknown (rule stays INDETERMINATE, never guessed)
+    } else if (field === "sss_section") {
+      const m = v.match(/33|39|40/);
+      if (m) u.sss_section = parseInt(m[0], 10);
+    } else if (field === "sss_months") {
+      // เงื่อนไขรักษาพยาบาล ปกส.: ส่งสมทบ ≥3 เดือนใน 15 เดือน
+      if (/เกิน|มากกว่า|ครบ|ใช่/.test(v)) u.contribution_months_in_last_15 = 6;
+      else if (/ไม่ถึง|น้อยกว่า|ยังไม่/.test(v)) u.contribution_months_in_last_15 = 1;
+      // ไม่แน่ใจ → leave unknown
+    } else if (field.startsWith("clin_")) {
+      // clinical follow-up answer → pair with its stored question and append to
+      // the Q/A history the 27B prescreen consumes (conversation field)
+      const asked = (base._clinical_questions as { field: string; question: string }[] | undefined) ?? [];
+      const q = asked.find((c) => c.field === field);
+      const qa = (u._clinical_qa as { q: string; a: string }[] | undefined) ?? [];
+      u._clinical_qa = [...qa, { q: q?.question ?? field, a: v }];
     } else {
       u[field] = v;
     }
@@ -94,30 +117,95 @@ function applyAnswers(base: Understood, answers: Record<string, string>): Unders
   return u;
 }
 
+// ---- 0d) clinical follow-up questions (fed into the 27B conversation) -------
+// Generated once per symptom set; answered via clickable options like the rest.
+async function generateClinicalQuestions(u: Understood, text: string): Promise<TurnQuestion[]> {
+  if (!featureFlags.hasLLM()) return [];
+  const prompt = `คุณเป็นพยาบาลคัดกรอง ตั้งคำถามติดตามอาการที่สำคัญที่สุดต่อการประเมินความเร่งด่วน 2-3 ข้อ
+อาการที่ผู้ป่วยเล่า: "${(u.symptoms ?? []).join(", ")}" (ข้อความเต็ม: "${text}")
+กติกา:
+- ภาษาไทยง่ายๆ สั้น คนทั่วไปเข้าใจ ถามทีละประเด็น (เช่น เป็นมานานเท่าไหร่ / มีอาการอันตรายร่วมไหม / ความรุนแรง)
+- แต่ละข้อมีตัวเลือกตอบสั้นๆ 2-4 ตัวเลือก ครอบคลุมคำตอบที่พบบ่อย
+- ห้ามถามข้อมูลส่วนตัว (อายุ สิทธิ พื้นที่) และห้ามถามซ้ำสิ่งที่ผู้ป่วยบอกแล้ว
+ตอบเป็น JSON array เท่านั้น: [{"question":"...","options":["...","..."]}]`;
+  const out = await llmJson<{ question: string; options: string[] }[]>(prompt, [], {
+    maxOutputTokens: 700,
+  });
+  return (Array.isArray(out) ? out : [])
+    .filter((q) => q?.question && Array.isArray(q.options) && q.options.length >= 2)
+    .slice(0, 3)
+    .map((q, i) => ({
+      field: `clin_${i}`,
+      label: q.question,
+      question: "",
+      options: q.options.slice(0, 4),
+      allow_other: true,
+      other_placeholder: "พิมพ์คำตอบ",
+    }));
+}
+
 // ---- 0c) which questions must be answered before the deep analysis ----------
+// Eligibility-discovery battery: enough to know WHICH rights this person can
+// actually claim (scheme → SSS details; age → elder allowance → pension check).
+// Conditional questions use show_if so the client stepper skips them unless the
+// earlier answer makes them relevant.
 const SCHEME_OPTIONS = ["บัตรทอง", "ประกันสังคม", "ข้าราชการ", "ไม่แน่ใจ"];
 const AGE_OPTIONS = ["ต่ำกว่า 60 ปี", "60-69 ปี", "70-79 ปี", "80-89 ปี", "90 ปีขึ้นไป"];
+const ELDER_BANDS = ["60-69 ปี", "70-79 ปี", "80-89 ปี", "90 ปีขึ้นไป"];
 const AREA_OPTIONS = ["บางกะปิ", "ลาดพร้าว", "ห้วยขวาง", "วังทองหลาง"];
 
 function buildQuestions(u: Understood): TurnQuestion[] {
   const intent = u.intent;
-  const needScheme = ["symptom_triage", "rights_discovery", "benefit_eligibility", "facility_search"].includes(
-    intent ?? ""
-  );
-  const needAge = ["symptom_triage", "benefit_eligibility"].includes(intent ?? "");
-  const needArea = ["symptom_triage", "facility_search"].includes(intent ?? "");
+  // symptoms present = full battery regardless of the classified intent
+  // (e.g. "เบาหวาน... พาไปตรวจที่ไหนดี" classifies as facility_search but still
+  // needs age for rights matching)
+  const symptomFlow = (u.symptoms?.length ?? 0) > 0;
+  const rightsRelevant =
+    symptomFlow ||
+    ["symptom_triage", "rights_discovery", "benefit_eligibility", "facility_search"].includes(intent ?? "");
+  const needAge =
+    symptomFlow || ["symptom_triage", "benefit_eligibility", "rights_discovery"].includes(intent ?? "");
+  const needArea = symptomFlow || ["symptom_triage", "facility_search"].includes(intent ?? "");
 
   const qs: TurnQuestion[] = [];
-  if (needScheme && !u.scheme)
+
+  // 1) scheme — "จ่ายประกันสังคมอยู่ไหม / มีสิทธิอะไร"
+  const schemeUnknown = rightsRelevant && !u.scheme;
+  if (schemeUnknown)
     qs.push({
       field: "scheme",
       label: "สิทธิการรักษา",
-      question: "ผู้ป่วยใช้สิทธิการรักษาอะไร",
+      question: "มีสิทธิการรักษาแบบไหน / จ่ายประกันสังคมอยู่หรือไม่",
       options: SCHEME_OPTIONS,
       allow_other: true,
       other_placeholder: "เช่น ประกันเอกชน",
     });
-  if (needAge && u.age == null)
+
+  // 2) SSS details — only when ประกันสังคม (known or just answered)
+  const isSSS = u.scheme === "SSS";
+  const sssShowIf = schemeUnknown ? { field: "scheme", any_of: ["ประกันสังคม"] } : undefined;
+  if (rightsRelevant && (isSSS || schemeUnknown) && u.sss_section == null)
+    qs.push({
+      field: "sss_section",
+      label: "มาตราประกันสังคม",
+      question: "เป็นผู้ประกันตนมาตราไหน",
+      options: ["ม.33 (พนักงานบริษัท)", "ม.39 (สมัครใจ)", "ม.40 (อาชีพอิสระ)", "ไม่แน่ใจ"],
+      allow_other: false,
+      show_if: sssShowIf,
+    });
+  if (rightsRelevant && (isSSS || schemeUnknown) && u.contribution_months_in_last_15 == null)
+    qs.push({
+      field: "sss_months",
+      label: "การส่งเงินสมทบ",
+      question: "ส่งเงินสมทบต่อเนื่องเกิน 3 เดือน (ใน 15 เดือนล่าสุด) หรือไม่",
+      options: ["เกิน 3 เดือน", "ไม่ถึง 3 เดือน", "ไม่แน่ใจ"],
+      allow_other: false,
+      show_if: sssShowIf,
+    });
+
+  // 3) age — unlocks เบี้ยผู้สูงอายุ ฯลฯ
+  const ageUnknown = needAge && u.age == null;
+  if (ageUnknown)
     qs.push({
       field: "age",
       label: "อายุผู้ป่วย",
@@ -126,6 +214,21 @@ function buildQuestions(u: Understood): TurnQuestion[] {
       allow_other: true,
       other_placeholder: "พิมพ์อายุเป็นตัวเลข",
     });
+
+  // 4) pension — เบี้ยผู้สูงอายุ disqualifier; asked only for 60+
+  const elder = (u.age ?? 0) >= 60;
+  if (rightsRelevant && (elder || ageUnknown) && u.receives_state_pension == null)
+    qs.push({
+      field: "pension",
+      label: "บำนาญ/รายได้ประจำจากรัฐ",
+      question:
+        "ผู้ป่วยรับบำนาญ เบี้ยหวัด หรือมีเงินเดือน/รายได้ประจำจากรัฐหรือไม่ (มีผลต่อเบี้ยยังชีพผู้สูงอายุ)",
+      options: ["ไม่ได้รับ", "ได้รับอยู่", "ไม่แน่ใจ"],
+      allow_other: false,
+      show_if: ageUnknown ? { field: "age", any_of: ELDER_BANDS } : undefined,
+    });
+
+  // 5) area — facility matching
   if (needArea && !u.area)
     qs.push({
       field: "area",
@@ -163,7 +266,7 @@ async function extractUnderstanding(
  "condition_hint": "โรคที่กล่าวถึง เช่น เบาหวาน|null",
  "intent": "symptom_triage|rights_discovery|facility_search|benefit_eligibility|document_qa|general_info"
 }`;
-  const extracted = await geminiJson<Partial<Understood>>(prompt, {}, { temperature: 0 });
+  const extracted = await llmJson<Partial<Understood>>(prompt, {}, { maxOutputTokens: 700 });
 
   // Deterministic guard against hallucinated demographics: only accept a scheme /
   // age that the user actually mentioned (or that we already knew).
@@ -218,6 +321,8 @@ function buildCase(u: Understood, profile: Profile, text: string): PatientCase {
     primary_symptom: u.symptoms?.[0],
     secondary_symptoms: u.symptoms?.slice(1),
     underlying_diseases: u.condition_hint ? [u.condition_hint] : undefined,
+    // answered clinical follow-ups → the Q/A history the 27B was trained on
+    conversation: (u._clinical_qa as { q: string; a: string }[] | undefined) ?? undefined,
   };
 }
 
@@ -227,9 +332,21 @@ function buildAttrs(u: Understood, profile: Profile): Record<string, unknown> {
   if (u.age != null) attrs.age = u.age;
   if (u.area) attrs.registered_in_area = u.area;
   if (u.scheme) attrs.scheme = u.scheme;
-  if (profile.sss_section != null) attrs.sss_section = profile.sss_section;
-  if (profile.receives_state_pension != null) {
-    attrs.receives_state_pension_or_benapd = profile.receives_state_pension;
+  // Product assumption (documented in the rule trace): Thai public health-rights
+  // schemes require Thai nationality, so a user of this flow is treated as Thai.
+  attrs.thai_nationality = true;
+  // answered in-chat (questions panel) wins over profile
+  const sssSection = (u.sss_section as number | undefined) ?? profile.sss_section;
+  if (sssSection != null) attrs.sss_section = sssSection;
+  const months = u.contribution_months_in_last_15 as number | undefined;
+  if (months != null) attrs.contribution_months_in_last_15 = months;
+  const pension = (u.receives_state_pension as boolean | undefined) ?? profile.receives_state_pension;
+  if (pension != null) {
+    attrs.receives_state_pension_or_benapd = pension;
+    // the panel question text covers regular state income too; institutional
+    // residents (สถานสงเคราะห์) are outside this self-serve flow
+    attrs.receives_regular_state_salary_or_income = pension;
+    attrs.resides_in_state_welfare_institution = false;
   }
   return attrs;
 }
@@ -271,17 +388,38 @@ export async function runTurnStream(
 
   // (3) GATE — if the screening/rights matching still lacks required info,
   //     ask ALL missing questions at once (clickable options + อื่นๆ) and stop.
-  //     No half-baked answers: the deep analysis runs only when data is complete.
-  const questions = buildQuestions(u);
-  if (questions.length) {
-    emit("questions", questions);
-    return {
-      understood: u,
-      pending_question: null,
-      questions,
-      cards, // safety card only (if emergency)
-      audit: { queries_run, rule_traces: [], citations: [], prescreen_result: null },
-    };
+  //     EMERGENCY BYPASS: when the pre-check finds red flags we never hold the
+  //     answer hostage to questions — respond immediately with what we have.
+  const symKey = (u.symptoms ?? []).join("|");
+  const isSymptomFlow = u.intent === "symptom_triage" || (u.symptoms?.length ?? 0) > 0;
+
+  if (!pre.emergency) {
+    let questions = buildQuestions(u);
+    // clinical follow-ups: once per symptom set, before the deep analysis, so
+    // the 27B triages with the same Q/A style it was trained on.
+    if (
+      isSymptomFlow &&
+      symKey &&
+      u._clinical_for !== symKey &&
+      u._prescreened_symptoms !== symKey
+    ) {
+      const clin = await generateClinicalQuestions(u, ctx.text);
+      if (clin.length) {
+        u._clinical_questions = clin.map((c) => ({ field: c.field, question: c.label }));
+        u._clinical_for = symKey;
+        questions = [...clin, ...questions];
+      }
+    }
+    if (questions.length) {
+      emit("questions", questions);
+      return {
+        understood: u,
+        pending_question: null,
+        questions,
+        cards,
+        audit: { queries_run, rule_traces: [], citations: [], prescreen_result: null },
+      };
+    }
   }
 
   const scheme = u.scheme as Scheme | undefined;
@@ -290,7 +428,6 @@ export async function runTurnStream(
 
   // (4) PRESCREEN FIRST (ThaiLLM-27B + rails) — the screening result drives
   //     which rights we show. Re-run only when the symptom set changed.
-  const symKey = (u.symptoms ?? []).join("|");
   const needPrescreen = (u.symptoms?.length ?? 0) > 0 && u._prescreened_symptoms !== symKey;
   let prescreen: PrescreenResult | null = null;
 
@@ -313,7 +450,6 @@ export async function runTurnStream(
   // captured for the post-barrier synthesis
   let benefitCard: BenefitCard | null = null;
   let hasFacility = false;
-  const isSymptomFlow = u.intent === "symptom_triage" || (u.symptoms?.length ?? 0) > 0;
 
   const tasks: Promise<void>[] = [];
 
@@ -345,16 +481,14 @@ export async function runTurnStream(
                 conditionId: condId || undefined,
                 diseaseNameEn: prescreen?.disease ?? undefined,
                 scheme,
+                age: u.age, // never surface age-gated services to the wrong age
               })
             : [];
         let title = `สิทธิ์ที่เกี่ยวกับเคสนี้ (${SCHEME_LABELS[scheme] ?? scheme})`;
         if (!services.length) {
           const all = await servicesForScheme(scheme);
-          const age = u.age ?? 99;
-          services = all.filter((s) => {
-            const min = parseInt(String((s as { age_min?: string }).age_min ?? "0"), 10) || 0;
-            return min <= age;
-          });
+          const age = u.age ?? 999;
+          services = all.filter((s) => (s.age_min ?? 0) <= age);
           if (isSymptomFlow) services = services.slice(0, 4);
           else title = `สิทธิ์ที่ครอบคลุม (${SCHEME_LABELS[scheme] ?? scheme})`;
         }
@@ -389,7 +523,7 @@ export async function runTurnStream(
         }
         benefitCard = buildBenefitCard(u, scheme, benefits, attrs, ruleTraces, citations);
         if (benefitCard) push(benefitCard);
-        const value = buildValueUnlockCard(u, scheme, attrs);
+        const value = computeValueUnlock({ age: u.age, scheme }, attrs);
         if (value) push(value);
       })()
     );
@@ -460,68 +594,6 @@ export async function runTurnStream(
   };
 }
 
-// ---- value unlock: "สิทธิ์ที่มีอยู่แล้ว คิดเป็นเงินเท่าไหร่/ปี" -----------------
-// Conservative & sourced: only rule-engine-backed amounts are summed. The
-// screening-package line carries no number (no reliable market price source).
-function buildValueUnlockCard(
-  u: Understood,
-  scheme: Scheme | undefined,
-  attrs: Record<string, unknown>
-): ValueUnlockCard | null {
-  const lines: ValueUnlockCard["lines"] = [];
-  let definite = 0;
-  let tentative = 0;
-
-  if ((u.age ?? 0) >= 60) {
-    const rule = getRule("RULE_OAA");
-    if (rule) {
-      const r = evaluateRule(rule.logic as Record<string, unknown>, attrs);
-      if (r.value && (r.status === "ELIGIBLE" || r.status === "INDETERMINATE")) {
-        const yearly = r.value.amount * 12;
-        const label = `เบี้ยยังชีพผู้สูงอายุ (${r.value.amount.toLocaleString()} × 12 เดือน)`;
-        if (r.status === "ELIGIBLE") {
-          lines.push({ label, amount_label: `${yearly.toLocaleString()} บาท/ปี` });
-          definite += yearly;
-        } else {
-          lines.push({
-            label,
-            amount_label: `${yearly.toLocaleString()} บาท/ปี`,
-            note: "รอยืนยันเงื่อนไข เช่น ไม่ได้รับบำนาญซ้ำซ้อน",
-            tentative: true,
-          });
-          tentative += yearly;
-        }
-      }
-    }
-  }
-
-  if (scheme === "SSS") {
-    lines.push({ label: "ค่าทันตกรรมประกันสังคม", amount_label: "900 บาท/ปี" });
-    definite += 900;
-  }
-
-  const numericCount = lines.length;
-  lines.push({
-    label: "สิทธิ์ตรวจ/คัดกรองโรคเรื้อรังที่รัฐครอบคลุม (น้ำตาล/ความดัน/ตา/ไต/เท้า)",
-    note: "ไม่มีค่าใช้จ่ายเมื่อใช้ตามสิทธิ",
-  });
-  if (!numericCount) return null;
-
-  const total = definite + tentative;
-  const total_label =
-    `อย่างน้อย ${total.toLocaleString()} บาท/ปี` +
-    (definite === 0 && tentative > 0 ? " (รอยืนยันเงื่อนไข)" : "");
-
-  return {
-    type: "value_unlock",
-    title: "มูลค่าสิทธิ์ที่อาจยังไม่ได้ใช้",
-    total_label,
-    lines,
-    footnote:
-      "นับเฉพาะรายการที่มีแหล่งอ้างอิงและเกณฑ์ชัดเจน ยอดจริงขึ้นกับการใช้สิทธิ · ยังไม่รวมมูลค่าการตรวจคัดกรองที่รัฐครอบคลุม",
-  };
-}
-
 /** Non-streaming convenience wrapper. */
 export function runTurn(ctx: TurnContext): Promise<TurnResult> {
   return runTurnStream(ctx);
@@ -534,25 +606,6 @@ function condIdFromHint(hint: string): string {
   if (h.includes("ความดัน")) return "COND_HYPERTENSION";
   if (h.includes("ไต")) return "COND_CKD";
   return "COND_T2DM";
-}
-
-const DEPT_TH: Record<string, string> = {
-  "Internal Medicine": "อายุรกรรม",
-  "Emergency Medicine": "ฉุกเฉิน",
-  "Primary Care Unit": "หน่วยบริการปฐมภูมิ (แพทย์ทั่วไป)",
-  "Surgery": "ศัลยกรรม",
-  "Orthopedics and Physical Therapy": "ออร์โธปิดิกส์/กายภาพบำบัด",
-  "Ophthalmology": "จักษุวิทยา",
-  "Otorhinolaryngology": "หูคอจมูก",
-  "Dermatology": "ผิวหนัง",
-  "Psychiatry": "จิตเวช",
-  "Pediatrics": "กุมารเวช",
-  "Obstetrics and Gynecology": "สูติ-นรีเวช",
-  "Rehabilitation": "เวชศาสตร์ฟื้นฟู",
-};
-function deptThai(dept: string | null): string | undefined {
-  if (!dept) return undefined;
-  return DEPT_TH[dept] ? `${DEPT_TH[dept]} (${dept})` : dept;
 }
 
 function buildBenefitCard(
@@ -635,12 +688,12 @@ async function synthCareBody(
   const fallback =
     `แนะนำให้ไปพบ${deptThai(prescreen.department) ?? "แพทย์"} (${severityThai(prescreen.severity)})` +
     `${prescreen.disease ? ` เบื้องต้นอาจเกี่ยวกับ ${prescreen.disease}` : ""}. นี่เป็นคำแนะนำเบื้องต้น ไม่ใช่การวินิจฉัยแทนแพทย์`;
-  if (!featureFlags.hasGemini()) return fallback;
+  if (!featureFlags.hasLLM()) return fallback;
   const prompt = `เขียนคำแนะนำสั้นกระชับ 1-2 ประโยค ภาษาไทยสุภาพ จากข้อมูลนี้ บอกแค่ "ควรไปแผนกไหน" และ "เร่งด่วนแค่ไหน" เท่านั้น
 ห้ามวินิจฉัย ห้ามตัดสินสิทธิ์ ห้ามพูดเวิ่นเว้อหรือพูดถึงโรคร่วมถ้าไม่จำเป็น:
 ${JSON.stringify(facts)}
 ตอบเป็นข้อความล้วน ไม่เกิน 2 ประโยค`;
-  const text = await geminiText(prompt, { temperature: 0.3, maxOutputTokens: 160 }).catch(() => "");
+  const text = await llmText(prompt, { maxOutputTokens: 200 }).catch(() => "");
   return text.trim() || fallback;
 }
 
@@ -659,16 +712,6 @@ async function synthNextSteps(
   else steps.push("ถ้าอาการรุนแรง/ฉุกเฉิน โทร 1669");
   steps.push("ถ้าไม่แน่ใจเรื่องสิทธิ โทร สปสช. 1330");
   return [...new Set(steps)].slice(0, 6);
-}
-
-function severityThai(s: string): string {
-  const m: Record<string, string> = {
-    "Observe at Home": "เฝ้าสังเกตที่บ้าน",
-    "Visit Hospital / Clinic": "ควรไปพบแพทย์เมื่อสะดวก",
-    "Visit Hospital / Clinic Urgently": "ควรไปพบแพทย์ภายใน 24 ชม.",
-    Emergency: "ฉุกเฉิน ไปทันที",
-  };
-  return m[s] ?? s;
 }
 
 function dedupeCitations(cs: { title: string; url: string; publisher: string }[]) {

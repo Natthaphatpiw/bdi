@@ -11,7 +11,11 @@ export const env = {
   supabaseAnonKey: get("NEXT_PUBLIC_SUPABASE_ANON_KEY"),
   supabaseServiceKey: get("SUPABASE_SERVICE_KEY"),
 
-  // Gemini
+  // Claude (primary text LLM) — CLAUDE_API_KEY or the standard ANTHROPIC_API_KEY
+  claudeApiKey: get("CLAUDE_API_KEY") || get("ANTHROPIC_API_KEY"),
+  claudeModel: get("CLAUDE_MODEL", "claude-sonnet-5"),
+
+  // Gemini (STT + embeddings; text fallback when Claude unavailable)
   geminiApiKey: get("GEMINI_API_KEY"),
   geminiModel: get("GEMINI_MODEL", "gemini-3.5-flash"),
   embedModel: get("EMBED_MODEL", "gemini-embedding-001"),
@@ -48,7 +52,9 @@ export const env = {
 export const featureFlags = {
   hasSupabase: () => !!env.supabaseUrl && !!env.supabaseServiceKey,
   hasSupabaseClient: () => !!env.supabaseUrl && !!env.supabaseAnonKey,
+  hasClaude: () => !!env.claudeApiKey,
   hasGemini: () => !!env.geminiApiKey,
+  hasLLM: () => !!env.claudeApiKey || !!env.geminiApiKey,
   hasRunpod: () => !!env.runpodEndpointId && !!env.runpodApiKey,
   hasNeo4j: () => !!env.neo4jUri && !!env.neo4jPassword,
   hasLine: () => !!env.lineChannelId && !!env.lineChannelSecret,
