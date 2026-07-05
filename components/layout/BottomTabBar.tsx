@@ -19,7 +19,7 @@ export function BottomTabBar({ basePath }: BottomTabBarProps) {
   const pathname = usePathname();
 
   const tabs: Tab[] = [
-    { label: "ปรึกษา", href: basePath + "/chat", Icon: MessageCircle },
+    { label: "ปรึกษา", href: basePath, Icon: MessageCircle },
     { label: "สิทธิ์", href: basePath + "/rights", Icon: Ticket },
     { label: "หาสถานพยาบาล", href: basePath + "/facilities", Icon: MapPin },
     { label: "โปรไฟล์", href: basePath + "/profile", Icon: User },
@@ -28,7 +28,10 @@ export function BottomTabBar({ basePath }: BottomTabBarProps) {
   return (
     <nav className="fixed bottom-0 inset-x-0 z-30 bg-surface border-t border-hairline pb-safe grid grid-cols-4">
       {tabs.map(({ label, href, Icon }) => {
-        const active = pathname.startsWith(href);
+        const active =
+          href === basePath
+            ? pathname === basePath || pathname === basePath + "/chat" || pathname.startsWith(basePath + "/case/")
+            : pathname.startsWith(href);
         return (
           <Link
             key={href}
