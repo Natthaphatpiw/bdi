@@ -74,6 +74,7 @@ export async function POST(req: NextRequest) {
     hasDoc,
     documentId,
     answers: body.input.type === "answers" ? body.input.answers : undefined,
+    prefill: body.input.prefill,
   };
 
   // ---- non-streaming (JSON) ----

@@ -27,7 +27,8 @@ const ORDER: Record<string, number> = {
   rights: 3,
   benefit: 4,
   facility: 5,
-  next_steps: 6,
+  options: 6,
+  next_steps: 7,
 };
 
 export function CardStack({ cards, onQuickAnswer, surface }: CardStackProps) {

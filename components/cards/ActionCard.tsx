@@ -15,6 +15,9 @@ import {
   Wallet,
   ChevronDown,
   ChevronUp,
+  Hospital,
+  ShieldCheck,
+  ExternalLink,
 } from "lucide-react";
 import type {
   Card,
@@ -25,6 +28,7 @@ import type {
   NextStepsCard,
   SafetyCard,
   ValueUnlockCard,
+  OptionsCard,
   EligibilityStatus,
 } from "@/lib/types";
 import { cn } from "@/lib/cn";
@@ -52,6 +56,7 @@ const ACCENT: Record<string, string> = {
   rights: "border-l-rights",
   benefit: "border-l-benefit",
   facility: "border-l-facility",
+  options: "border-l-rights",
   next_steps: "border-l-hairline",
   warn: "border-l-benefit",
 };
@@ -350,11 +355,15 @@ function FacilityBody({
           >
             <div className="flex flex-wrap items-center gap-2">
               <span className="font-medium text-ink">{f.name}</span>
-              {f.level && <span className="text-sm text-ink-muted">{f.level}</span>}
+              {(f.type_label || f.level) && <span className="text-sm text-ink-muted">{f.type_label ?? f.level}</span>}
               {f.distance_km != null && (
                 <Badge tone="facility">{f.distance_km} กม.</Badge>
               )}
-              {f.review_required && <Badge tone="review">รอตรวจสอบ</Badge>}
+              {(f.labels?.length ? f.labels : f.review_required ? ["รอตรวจสอบ"] : []).slice(0, 4).map((label) => (
+                <Badge key={label} tone={label === "รอตรวจสอบ" ? "review" : "facility"}>
+                  {label}
+                </Badge>
+              ))}
             </div>
 
             {f.accepts.length > 0 && (
@@ -368,6 +377,26 @@ function FacilityBody({
             )}
 
             {f.note && <p className="text-sm text-ink-muted">{f.note}</p>}
+            {f.services && f.services.length > 0 && (
+              <ul className="flex flex-col gap-1">
+                {f.services.slice(0, 3).map((s) => (
+                  <li key={s} className="flex items-start gap-1.5 text-sm text-ink-soft">
+                    <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-facility" aria-hidden="true" />
+                    <span>{s}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {f.reasons && f.reasons.length > 0 && (
+              <div className="rounded-btn bg-facility-soft px-3 py-2 text-sm text-facility">
+                <p className="font-semibold">แนะนำเพราะ:</p>
+                <ul className="mt-1 flex flex-col gap-0.5">
+                  {f.reasons.slice(0, 4).map((r) => (
+                    <li key={r}>✓ {r}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
             <div className="flex flex-wrap gap-2">
               {f.phone && (
@@ -391,10 +420,99 @@ function FacilityBody({
                   นำทาง
                 </Button>
               )}
+              {f.source_url && (
+                <Button
+                  variant="outline"
+                  size="md"
+                  leftIcon={<ExternalLink className="h-4 w-4" />}
+                  onClick={() => openExternal(f.source_url as string, surface)}
+                >
+                  ดูหลักฐาน
+                </Button>
+              )}
             </div>
           </li>
         ))}
       </ul>
+    </CardFrame>
+  );
+}
+
+function OptionsBody({ card, surface }: { card: OptionsCard; surface: "web" | "line" }) {
+  return (
+    <CardFrame
+      accent={ACCENT.options}
+      icon={<ShieldCheck className="h-5 w-5 shrink-0 text-rights" aria-hidden="true" />}
+      title={card.title}
+    >
+      {card.subtitle && <p className="text-sm text-ink-soft">{card.subtitle}</p>}
+      <div className="mt-3 flex flex-col gap-4">
+        <section>
+          <h3 className="text-sm font-semibold text-ink">โรงพยาบาลเอกชน / คลินิก / แล็บ</h3>
+          <ul className="mt-2 flex flex-col gap-3">
+            {card.private_facilities.slice(0, 3).map((f) => (
+              <li key={f.id} className="rounded-btn border border-hairline p-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Hospital className="h-4 w-4 text-facility" aria-hidden="true" />
+                  <span className="font-medium text-ink">{f.name}</span>
+                  <Badge tone="facility">
+                    {f.kind === "private_hospital" ? "รพ.เอกชน" : f.kind === "clinic" ? "คลินิก" : "แล็บ"}
+                  </Badge>
+                  {f.accepts_sss && <Badge tone="rights">รับประกันสังคม</Badge>}
+                  {f.accepts_insurance && <Badge tone="benefit">เบิกประกันเอกชนได้</Badge>}
+                </div>
+                {f.services && (
+                  <p className="mt-1 text-sm text-ink-soft">{f.services.slice(0, 2).join(" · ")}</p>
+                )}
+                {f.reasons && <p className="mt-1 text-xs text-ink-muted">แนะนำเพราะ: {f.reasons.join(" · ")}</p>}
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {f.phone && (
+                    <a href={`tel:${f.phone.split(" ")[0]}`} className="inline-block">
+                      <Button variant="outline" size="md" leftIcon={<Phone className="h-4 w-4" />}>
+                        โทร
+                      </Button>
+                    </a>
+                  )}
+                  {f.source_url && (
+                    <Button
+                      variant="outline"
+                      size="md"
+                      leftIcon={<ExternalLink className="h-4 w-4" />}
+                      onClick={() => openExternal(f.source_url as string, surface)}
+                    >
+                      ที่มา
+                    </Button>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+        <section>
+          <h3 className="text-sm font-semibold text-ink">ประกันสุขภาพที่ควรนำไปเปรียบเทียบ</h3>
+          <ul className="mt-2 flex flex-col gap-3">
+            {card.insurance_plans.slice(0, 3).map((p) => (
+              <li key={p.id} className="rounded-btn border border-hairline p-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-medium text-ink">{p.plan_name}</span>
+                  <Badge tone="benefit">{p.plan_type}</Badge>
+                </div>
+                <p className="mt-0.5 text-xs text-ink-muted">{p.insurer}</p>
+                <ul className="mt-2 flex flex-col gap-1">
+                  {p.coverage.slice(0, 2).map((c) => (
+                    <li key={c} className="flex items-start gap-1.5 text-sm text-ink-soft">
+                      <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-benefit" aria-hidden="true" />
+                      <span>{c}</span>
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-2 text-xs font-medium text-safety">{p.exclusions_note}</p>
+              </li>
+            ))}
+          </ul>
+        </section>
+      </div>
+      {card.disclaimer && <p className="mt-3 text-xs text-ink-muted">{card.disclaimer}</p>}
     </CardFrame>
   );
 }
@@ -464,6 +582,8 @@ export function ActionCard({ card, surface, onQuickAnswer }: ActionCardProps) {
       return <BenefitBody card={card} onQuickAnswer={onQuickAnswer} />;
     case "facility":
       return <FacilityBody card={card} surface={surface} />;
+    case "options":
+      return <OptionsBody card={card} surface={surface} />;
     case "next_steps":
       return <NextStepsBody card={card} />;
     case "value_unlock":

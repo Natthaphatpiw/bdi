@@ -21,6 +21,7 @@ import {
 import { evaluateRule, getRule, evaluateBenefit, questionFor, ATTR_QUESTIONS_TH } from "./ruleEngine";
 import { retrieveKgChunks, retrieveUserDocs } from "./retrieve";
 import { computeValueUnlock } from "./valueUnlock";
+import { buildOptionsCard, optionCitations } from "./options";
 import { deptThai, severityThai } from "./triageLabels";
 import type {
   Card,
@@ -47,6 +48,8 @@ export interface TurnContext {
   documentId?: string;
   /** structured answers to a previous questions panel — merged without NLU */
   answers?: Record<string, string>;
+  /** one-shot quick-chip values (patient_role/scheme/area) from the home screen */
+  prefill?: Record<string, string>;
 }
 
 export interface TurnResult {
@@ -91,7 +94,9 @@ function applyAnswers(base: Understood, answers: Record<string, string>): Unders
   for (const [field, raw] of Object.entries(answers)) {
     const v = (raw ?? "").trim();
     if (!v) continue;
-    if (field === "scheme") {
+    if (field === "__review_confirm") {
+      u._review_confirm = true;
+    } else if (field === "scheme") {
       if (/ประกันสังคม|ประกันตน|มาตรา|SSS/i.test(v)) u.scheme = "SSS";
       else if (/ข้าราชการ|รัฐวิสาหกิจ|เบิก|CSMBS/i.test(v)) u.scheme = "CSMBS";
       // บัตรทอง / ไม่แน่ใจ → UCS (สิทธิพื้นฐานตามกฎหมายเมื่อไม่มีสิทธิอื่น)
@@ -104,6 +109,16 @@ function applyAnswers(base: Understood, answers: Record<string, string>): Unders
       else if (nums.length === 1) u.age = nums[0];
     } else if (field === "area") {
       u.area = v.replace(/^เขต\s*/, "").trim();
+    } else if (field === "patient_role") {
+      u.patient_role = v;
+    } else if (field === "symptoms") {
+      const parts = v
+        .split(/[,\n·]+/)
+        .map((s) => s.trim())
+        .filter(Boolean);
+      if (parts.length) u.symptoms = parts;
+    } else if (field === "condition_hint") {
+      u.condition_hint = v;
     } else if (field === "pension") {
       // เบี้ยผู้สูงอายุ disqualifier: รับบำนาญ/เบี้ยหวัดจากรัฐอยู่ไหม
       if (/ไม่ได้รับ|ไม่รับ|ไม่มี/.test(v)) u.receives_state_pension = false;
@@ -405,6 +420,12 @@ export async function runTurnStream(
   } else {
     ({ u } = await extractUnderstanding(ctx));
   }
+  // one-shot quick chips (role/scheme/area) ride the first text turn; merged via
+  // the same deterministic path AFTER NLU so a chip always beats an NLU guess
+  if (ctx.prefill && Object.keys(ctx.prefill).length) {
+    u = applyAnswers(u, ctx.prefill);
+    queries_run.push("prefill_merge(deterministic)");
+  }
   emit("understood", u);
 
   // (3) GATE — if the screening/rights matching still lacks required info,
@@ -421,6 +442,7 @@ export async function runTurnStream(
     if (
       isSymptomFlow &&
       symKey &&
+      !u._review_confirm &&
       u._clinical_for !== symKey &&
       u._prescreened_symptoms !== symKey
     ) {
@@ -452,7 +474,10 @@ export async function runTurnStream(
   // (4) PRESCREEN FIRST (ThaiLLM-27B + rails) — the screening result drives
   //     which rights we show. Re-run only when the symptom set changed.
   const needPrescreen = (u.symptoms?.length ?? 0) > 0 && u._prescreened_symptoms !== symKey;
-  let prescreen: PrescreenResult | null = null;
+  let prescreen: PrescreenResult | null =
+    !needPrescreen && u._last_prescreen
+      ? (u._last_prescreen as PrescreenResult)
+      : null;
 
   if (needPrescreen) {
     prescreen = await runPrescreen({
@@ -460,6 +485,7 @@ export async function runTurnStream(
       symptomsText,
     });
     u._prescreened_symptoms = symKey; // persisted via session_state
+    u._last_prescreen = prescreen;
     queries_run.push(`prescreen(${prescreen.source})+rails`);
     if (prescreen.escalate_hotline) {
       push(emergencyCardFromHotline(prescreen.safety_note, prescreen.escalate_hotline, prescreen.red_flags));
@@ -610,6 +636,15 @@ export async function runTurnStream(
   // next steps (needs prescreen + benefit)
   const checklist = await synthNextSteps(u, prescreen, benefitCard, hasFacility);
   if (checklist.length) push({ type: "next_steps", title: "ขั้นตอนถัดไป", checklist });
+
+  // private alternatives + real insurance products. Deterministic from verified
+  // JSON, then cited in the evidence drawer. This keeps the product broader than
+  // government benefits without asking the LLM to invent offers.
+  if (isSymptomFlow || scheme) {
+    const optionsCard = buildOptionsCard(u, scheme);
+    push(optionsCard);
+    citations.push(...optionCitations(optionsCard));
+  }
 
   // evidence (last)
   push({

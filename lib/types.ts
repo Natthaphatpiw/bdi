@@ -70,6 +70,45 @@ export interface ValueUnlockCard {
   lines: { label: string; amount_label?: string; note?: string; tentative?: boolean }[];
   footnote?: string;
 }
+// ทางเลือกนอกสิทธิ์รัฐ — รพ.เอกชน/คลินิกใกล้พื้นที่ + ประกันสุขภาพจริงพร้อม
+// ข้อควรระวังตรงไปตรงมา (สร้าง deterministic จาก JSON ที่ verify แล้วเท่านั้น)
+export interface OptionsCard {
+  type: "options";
+  title: string;
+  subtitle?: string;
+  private_facilities: {
+    id: string;
+    name: string;
+    kind: "private_hospital" | "clinic" | "lab";
+    district?: string;
+    phone?: string;
+    hours?: string;
+    services?: string[];
+    price_note?: string;
+    accepts_sss?: boolean;
+    accepts_insurance?: boolean;
+    reasons?: string[];
+    source_url?: string;
+    publisher?: string;
+  }[];
+  insurance_plans: {
+    id: string;
+    insurer: string;
+    plan_name: string;
+    plan_type: string;
+    coverage: string[];
+    premium_note?: string;
+    /** ข้อยกเว้นแบบตรงไปตรงมา เช่น โรคที่เป็นมาก่อน/ระยะรอคอย — ห้ามละไว้ */
+    exclusions_note: string;
+    best_for?: string;
+    reasons?: string[];
+    source_url?: string;
+    publisher?: string;
+  }[];
+  caveats?: string[];
+  disclaimer?: string;
+}
+
 export interface EvidenceCard {
   type: "evidence";
   title: string;
@@ -86,6 +125,7 @@ export type Card =
   | FacilityCard
   | NextStepsCard
   | ValueUnlockCard
+  | OptionsCard
   | EvidenceCard;
 
 export type CardType = Card["type"];
@@ -124,6 +164,9 @@ export interface TurnInput {
   document_id?: string;
   /** structured answers to TurnQuestion[] — merged deterministically (no NLU) */
   answers?: Record<string, string>;
+  /** one-shot quick-chip values (role/scheme/area) sent with the first text turn —
+   *  merged via the same deterministic applyAnswers path, so no NLU can override them */
+  prefill?: Record<string, string>;
 }
 export interface TurnRequest {
   session_id: string;
@@ -139,6 +182,21 @@ export interface TurnResponse {
   questions?: TurnQuestion[];
   cards: Card[];
   audit_id?: string;
+}
+
+export interface CaseSnapshot {
+  session_id: string;
+  channel?: Channel;
+  started_at?: string;
+  preview?: string;
+  understood: Understood;
+  cards: Card[];
+  audit?: {
+    queries_run?: string[];
+    rule_traces?: unknown[];
+    citations?: { title: string; url: string; publisher: string }[];
+    prescreen_result?: unknown;
+  };
 }
 
 // SSE event envelope streamed from /api/turn (Accept: text/event-stream)
@@ -209,6 +267,17 @@ export interface FacilityResult {
   note?: string;
   confidence?: string;
   review_required?: boolean;
+  /** ประเภทเป็นภาษาไทย เช่น "ศูนย์บริการสาธารณสุข" / "รพ.เอกชน" */
+  type_label?: string;
+  /** compare-mode badges เช่น "แนะนำอันดับ 1" "ใกล้ที่สุด" "รับสิทธิ์นี้" "มี source" "รอตรวจสอบ" */
+  labels?: string[];
+  /** เหตุผลที่แนะนำ (checklist) เช่น "อยู่ในเขตของคุณ" */
+  reasons?: string[];
+  /** บริการเด่นที่เกี่ยวข้องกับเคส เช่น อายุรกรรม/ตรวจสุขภาพ/เบาหวาน */
+  services?: string[];
+  source_url?: string;
+  source_title?: string;
+  publisher?: string;
 }
 
 // ---- profile / consent ----
@@ -266,7 +335,9 @@ export interface PassportData {
   symptoms: string[];
   condition?: string;
   triage?: { department?: string; severity?: string };
-  rights_summary: string[]; // บริการ/สิทธิ์ที่ครอบคลุม (สั้น)
+  rights_summary: string[]; // สิทธิ/บริการที่ใช้กับเคสนี้เท่านั้น (สั้น)
+  /** ประวัติจากการซักถามเบื้องต้น — deterministic จาก session slots (_clinical_qa) ไม่ใช่จาก LLM */
+  clinical_qa?: { q: string; a: string }[];
   recommended_facility?: { name: string; note?: string };
   prepared_documents: string[];
   questions_for_provider?: string[];

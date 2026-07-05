@@ -27,6 +27,7 @@ export function PassportModal({
   const [passport, setPassport] = useState<PassportData | null>(null);
   const [errMsg, setErrMsg] = useState("");
   const [downloading, setDownloading] = useState(false);
+  const [saveImageUrl, setSaveImageUrl] = useState<string | null>(null);
   const cardRef = useRef<HTMLDivElement>(null);
   const startedRef = useRef(false);
 
@@ -64,6 +65,7 @@ export function PassportModal({
       setMissing([]);
       setAnswers({});
       setErrMsg("");
+      setSaveImageUrl(null);
     }
   }, [open, run]);
 
@@ -88,12 +90,45 @@ export function PassportModal({
         cacheBust: true,
         backgroundColor: "#ffffff",
       });
+
+      // 1) Web Share API with a file — on iOS/Android (incl. LINE in-app
+      // browser) this opens the native sheet where "บันทึกรูปภาพ" saves
+      // straight to the photo gallery. <a download> does NOT work there:
+      // LINE's WebView ignores it and iOS Safari saves to Files, not Photos.
+      const blob = await (await fetch(dataUrl)).blob();
+      const file = new File([blob], `case-passport-${passport.ref_code}.png`, {
+        type: "image/png",
+      });
+      const nav = navigator as Navigator & {
+        canShare?: (data: ShareData) => boolean;
+        share?: (data: ShareData) => Promise<void>;
+      };
+      if (nav.share && nav.canShare?.({ files: [file] })) {
+        try {
+          await nav.share({ files: [file], title: "Case Passport" });
+          toast("เลือก 'บันทึกรูปภาพ' เพื่อเก็บลงเครื่อง", "success");
+          return;
+        } catch (e) {
+          if ((e as Error).name === "AbortError") return; // user closed the sheet
+          // otherwise fall through to the next strategy
+        }
+      }
+
+      // 2) Touch device without file-share → full-screen preview the user can
+      // long-press to save (works in LINE WebView and mobile Safari).
+      if (window.matchMedia("(pointer: coarse)").matches) {
+        setSaveImageUrl(dataUrl);
+        return;
+      }
+
+      // 3) Desktop — regular download.
       const a = document.createElement("a");
-      a.href = dataUrl;
+      a.href = URL.createObjectURL(blob);
       a.download = `case-passport-${passport.ref_code}.png`;
       document.body.appendChild(a);
       a.click();
       a.remove();
+      URL.revokeObjectURL(a.href);
       toast("บันทึกรูป Case Passport แล้ว", "success");
     } catch (e) {
       console.error("[passport] download:", (e as Error).message);
@@ -191,6 +226,24 @@ export function PassportModal({
           <p className="text-center text-xs text-ink-muted">
             บันทึกรูปไว้ในเครื่อง แล้วนำไปยื่นที่จุดคัดกรองของสถานพยาบาลได้เลย
           </p>
+        </div>
+      )}
+
+      {/* long-press-to-save overlay for WebViews that block file share/download */}
+      {saveImageUrl && (
+        <div className="fixed inset-0 z-[70] flex flex-col items-center justify-center gap-4 bg-black/85 p-5">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={saveImageUrl}
+            alt="Case Passport"
+            className="max-h-[70vh] w-auto max-w-full rounded-lg bg-white"
+          />
+          <p className="text-center text-sm font-medium text-white">
+            แตะค้างที่รูป แล้วเลือก &quot;บันทึกรูปภาพ / เพิ่มลงในรูปภาพ&quot;
+          </p>
+          <Button variant="outline" size="lg" onClick={() => setSaveImageUrl(null)}>
+            ปิด
+          </Button>
         </div>
       )}
     </Sheet>

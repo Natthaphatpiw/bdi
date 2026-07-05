@@ -5,8 +5,8 @@ import { z } from "zod";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { casePassportAgent, CASE_PASSPORT_INSTRUCTIONS } from "@/mastra/agents/casePassport";
 import { llmJson } from "./llm";
-import { computeValueUnlock } from "./valueUnlock";
 import { deptThai, severityThai, conditionThaiFor } from "./triageLabels";
+import { computeValueUnlock } from "./valueUnlock";
 import type { Card, PassportData, PassportResult, PrescreenResult, Understood } from "./types";
 
 const CURRENT_YEAR = new Date().getFullYear();
@@ -99,6 +99,47 @@ function refCode(): string {
 const DISCLAIMER =
   "เอกสารนี้เป็นข้อมูลสรุปเบื้องต้นที่ผู้ป่วยจัดทำผ่านผู้ช่วย AI ไม่ใช่ใบรับรองแพทย์หรือการวินิจฉัย โปรดให้บุคลากรทางการแพทย์ประเมินซ้ำ";
 
+function passportAttrs(slots: Understood, prof?: Record<string, unknown> | null): Record<string, unknown> {
+  const attrs: Record<string, unknown> = { thai_nationality: true };
+  if (typeof slots.age === "number") attrs.age = slots.age;
+  else if (typeof prof?.birth_year === "number") attrs.age = CURRENT_YEAR - prof.birth_year;
+  const scheme = mapScheme(slots.scheme ?? prof?.scheme);
+  if (scheme) attrs.scheme = scheme;
+  const section = (slots.sss_section as number | undefined) ?? (prof?.sss_section as number | undefined);
+  if (section != null) attrs.sss_section = section;
+  const months = slots.contribution_months_in_last_15 as number | undefined;
+  if (months != null) attrs.contribution_months_in_last_15 = months;
+  const pension =
+    (slots.receives_state_pension as boolean | undefined) ??
+    (prof?.receives_state_pension as boolean | undefined);
+  if (pension != null) {
+    attrs.receives_state_pension_or_benapd = pension;
+    attrs.receives_regular_state_salary_or_income = pension;
+    attrs.resides_in_state_welfare_institution = false;
+  }
+  return attrs;
+}
+
+function filterPassportRights(lines: string[], passport: AgentOut["passport"], prescreen: PrescreenResult | null): string[] {
+  const conditionText = [
+    passport?.condition,
+    prescreen?.disease,
+    ...(passport?.symptoms ?? []),
+    passport?.chief_complaint,
+  ]
+    .filter(Boolean)
+    .join(" ");
+  const isDentalCase = /ฟัน|ทันต|เหงือก/.test(conditionText);
+  const isMaternityCase = /ตั้งครรภ์|คลอด|ฝากครรภ์/.test(conditionText);
+  const blocked = lines.filter((line) => {
+    if (!isDentalCase && /ทันต|ฟัน|ขูดหินปูน|ถอนฟัน/.test(line)) return false;
+    if (!isMaternityCase && /คลอด|บุตร|ฝากครรภ์/.test(line)) return false;
+    if (/เสียชีวิต|ทำศพ|ชราภาพ|ว่างงาน/.test(line)) return false;
+    return true;
+  });
+  return blocked.slice(0, 5);
+}
+
 export async function buildPassport(
   sb: SupabaseClient,
   sessionId: string,
@@ -108,7 +149,7 @@ export async function buildPassport(
   const [{ data: msgs }, { data: state }, { data: prof }, { data: audits }] = await Promise.all([
     sb.from("messages").select("role, content").eq("session_id", sessionId).order("created_at", { ascending: true }).limit(80),
     sb.from("session_state").select("slots").eq("session_id", sessionId).maybeSingle(),
-    sb.from("profiles").select("birth_year, scheme, area_code, receives_state_pension").maybeSingle(),
+    sb.from("profiles").select("birth_year, scheme, area_code, sss_section, receives_state_pension").maybeSingle(),
     sb
       .from("audit_log")
       .select("prescreen_result, created_at")
@@ -139,10 +180,22 @@ export async function buildPassport(
   if (prof?.birth_year) profileLines.push(`อายุ ~${CURRENT_YEAR - (prof.birth_year as number)}`);
   if (prof?.area_code) profileLines.push(`เขต/พื้นที่: ${prof.area_code}`);
 
+  // screening follow-up answers the user gave (e.g. "มีอาการมานานแค่ไหน → เป็นเดือนขึ้นไป")
+  // — deterministic slot data, carried onto the passport verbatim (never from the LLM)
+  const slots = (state?.slots ?? {}) as Understood;
+  const clinicalQa = (
+    Array.isArray(slots._clinical_qa) ? (slots._clinical_qa as { q: string; a: string }[]) : []
+  )
+    .filter((x) => x && typeof x.q === "string" && typeof x.a === "string" && x.q && x.a)
+    .slice(0, 6);
+
   const context = [
     "สร้าง Case Passport จากข้อมูลเซสชันนี้",
     profileLines.length ? `\nโปรไฟล์ผู้ใช้: ${profileLines.join(" · ")}` : "",
     state?.slots ? `\nสิ่งที่ระบบเข้าใจ (slots): ${JSON.stringify(state.slots)}` : "",
+    clinicalQa.length
+      ? "\nประวัติจากการซักถามเบื้องต้น:\n" + clinicalQa.map((x) => `- ${x.q} → ${x.a}`).join("\n")
+      : "",
     "\nสรุปบทสนทนา:\n" + (transcript.length ? transcript.join("\n") : "(ยังไม่มีบทสนทนา)"),
     extra && Object.keys(extra).length
       ? "\nข้อมูลเพิ่มเติมที่ผู้ใช้เพิ่งให้:\n" +
@@ -233,25 +286,6 @@ export async function buildPassport(
     };
   }
 
-  // ---- unclaimed-entitlement value: DETERMINISTIC (rule engine), never LLM ----
-  const slots = (state?.slots ?? {}) as Understood;
-  const age =
-    slots.age ??
-    out.passport.patient.age ??
-    (prof?.birth_year ? CURRENT_YEAR - (prof.birth_year as number) : undefined);
-  const schemeCode = mapScheme(slots.scheme ?? prof?.scheme ?? out.passport.patient.scheme);
-  // mirror the orchestrator's buildAttrs so the passport value matches the chat card
-  const attrs: Record<string, unknown> = { age, scheme: schemeCode, thai_nationality: true };
-  if (slots.area) attrs.registered_in_area = slots.area;
-  const pension =
-    (slots.receives_state_pension as boolean | undefined) ?? prof?.receives_state_pension ?? null;
-  if (pension != null) {
-    attrs.receives_state_pension_or_benapd = pension;
-    attrs.receives_regular_state_salary_or_income = pension;
-    attrs.resides_in_state_welfare_institution = false;
-  }
-  const value = computeValueUnlock({ age, scheme: schemeCode }, attrs);
-
   // ---- detailed screening section: the 27B result itself (with rails applied) --
   const SOURCE_LABEL: Record<string, string> = {
     runpod: "ThaiLLM-27B-Prescreen (RunPod) + safety rails",
@@ -274,7 +308,8 @@ export async function buildPassport(
   const passport: PassportData = {
     ...out.passport,
     symptoms: out.passport.symptoms ?? [],
-    rights_summary: out.passport.rights_summary ?? [],
+    rights_summary: filterPassportRights(out.passport.rights_summary ?? [], out.passport, prescreen),
+    clinical_qa: clinicalQa.length ? clinicalQa : undefined,
     prepared_documents: out.passport.prepared_documents ?? ["บัตรประชาชนตัวจริงของผู้ป่วย"],
     // prefer the real prescreen triage over the agent's summary
     triage: screening
@@ -285,9 +320,17 @@ export async function buildPassport(
     ref_code: refCode(),
     generated_at: new Date().toISOString(),
     unclaimed_value:
-      value && value.total_label
-        ? { total_label: value.total_label, lines: value.lines }
-        : undefined,
+      (() => {
+        const scheme = mapScheme(slots.scheme ?? out.passport?.patient?.scheme ?? prof?.scheme);
+        const age =
+          out.passport?.patient?.age ??
+          slots.age ??
+          (typeof prof?.birth_year === "number" ? CURRENT_YEAR - prof.birth_year : undefined);
+        const value = computeValueUnlock({ age, scheme }, passportAttrs(slots, prof));
+        return value && value.total_label
+          ? { total_label: value.total_label, lines: value.lines }
+          : undefined;
+      })(),
     hotlines: [
       { number: "1669", name: "การแพทย์ฉุกเฉิน" },
       { number: "1330", name: "สายด่วน สปสช." },

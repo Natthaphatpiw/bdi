@@ -27,6 +27,10 @@ interface FbFacility {
   note?: string;
   confidence?: string;
   review_required?: boolean;
+  source_url?: string;
+  source_title?: string;
+  publisher?: string;
+  services?: string[];
 }
 interface FbRight {
   code: string;
@@ -264,14 +268,24 @@ export async function searchFacilities(p: FacilitySearchParams): Promise<Facilit
     district: string;
     review_required: boolean;
     note: string;
+    services: string[];
+    source_url: string;
+    source_title: string;
+    publisher: string;
   }>(
     `MATCH (f:Facility)-[:ACCEPTS]->(r:HealthRight {code:$scheme})
+     OPTIONAL MATCH (s:Service)-[:PROVIDED_AT]->(f)
+     OPTIONAL MATCH (f)-[:SOURCED_FROM]->(src:SourceDocument)
      RETURN coalesce(f.facility_id, elementId(f)) AS facility_id,
             coalesce(f.name, f.name_th) AS name, f.level AS level, f.phone AS phone,
             toFloat(f.lat) AS lat, toFloat(f.lng) AS lng,
             [x IN split(coalesce(f.accepted_rights,''),';') WHERE x<>''] AS accepts,
             f.district AS district, coalesce(f.review_required,false) AS review_required,
-            coalesce(f.notes,'') AS note`,
+            coalesce(f.notes,'') AS note,
+            collect(DISTINCT coalesce(s.name, s.service_name_th))[..4] AS services,
+            head(collect(DISTINCT src.url)) AS source_url,
+            head(collect(DISTINCT src.title)) AS source_title,
+            head(collect(DISTINCT src.publisher)) AS publisher`,
     { scheme: p.scheme }
   );
   if (rows.length) {
@@ -286,6 +300,10 @@ export async function searchFacilities(p: FacilitySearchParams): Promise<Facilit
       district: r.district,
       review_required: r.review_required,
       note: r.note,
+      source_url: r.source_url,
+      source_title: r.source_title,
+      publisher: r.publisher,
+      services: (r.services ?? []).filter(Boolean),
     }));
   } else {
     candidates = FB.facilities.filter((f) => f.accepts.includes(p.scheme));
@@ -302,6 +320,19 @@ export async function searchFacilities(p: FacilitySearchParams): Promise<Facilit
       p.lat != null && p.lng != null && f.lat != null && f.lng != null
         ? distanceKm(p.lat, p.lng, f.lat, f.lng)
         : undefined;
+    const labels: string[] = [];
+    const reasons: string[] = [];
+    if (f.review_required) labels.push("รอตรวจสอบ");
+    if (f.accepts.includes(p.scheme)) {
+      labels.push("รับสิทธิ์นี้");
+      reasons.push(`รับ${SCHEME_LABELS[p.scheme] ?? p.scheme}`);
+    }
+    if (p.area && (f.district || "").includes(p.area)) {
+      labels.push("ใกล้พื้นที่");
+      reasons.push("อยู่ในพื้นที่ที่คุณเลือก");
+    }
+    if (f.source_url) labels.push("มี source");
+    if (distance != null) reasons.push(`ระยะทางประมาณ ${distance} กม.`);
     return {
       facility_id: f.facility_id,
       name: f.name,
@@ -317,10 +348,21 @@ export async function searchFacilities(p: FacilitySearchParams): Promise<Facilit
       confidence: f.confidence,
       review_required: f.review_required,
       open_now: f.open_hours ? undefined : undefined,
+      type_label: facilityTypeLabel(f.level),
+      labels,
+      reasons: reasons.length ? reasons : ["เป็นสถานพยาบาลที่จับคู่กับสิทธิ์ของคุณได้"],
+      services: f.services,
+      source_url: f.source_url,
+      source_title: f.source_title,
+      publisher: f.publisher,
     };
   });
 
   results.sort((a, b) => (a.distance_km ?? 999) - (b.distance_km ?? 999));
+  results.forEach((r, i) => {
+    if (i === 0) r.labels = ["แนะนำอันดับ 1", ...(r.labels ?? [])];
+    if (i === 0 && r.distance_km != null) r.labels = [...(r.labels ?? []), "ใกล้ที่สุด"];
+  });
   return results.slice(0, limit);
 }
 
@@ -365,4 +407,13 @@ export const SCHEME_LABELS: Record<string, string> = {
 };
 function schemeLabels(codes: string[]): string[] {
   return codes.map((c) => SCHEME_LABELS[c] ?? c);
+}
+
+function facilityTypeLabel(level?: string): string | undefined {
+  if (!level) return undefined;
+  if (/private|เอกชน/i.test(level)) return "โรงพยาบาลเอกชน";
+  if (/clinic|คลินิก/i.test(level)) return "คลินิก";
+  if (/health_center|center|ศูนย์/i.test(level)) return "ศูนย์บริการสาธารณสุข";
+  if (/hospital|รพ|โรงพยาบาล/i.test(level)) return "โรงพยาบาล";
+  return level;
 }

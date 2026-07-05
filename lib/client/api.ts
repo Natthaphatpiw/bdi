@@ -4,6 +4,7 @@
 import { currentToken } from "./supabaseBrowser";
 import type {
   Card,
+  CaseSnapshot,
   Consent,
   DocumentRecord,
   FacilityResult,
@@ -50,6 +51,8 @@ export interface TurnInputClient {
   audio?: { data_base64: string; mime: string };
   document_id?: string;
   answers?: Record<string, string>;
+  /** one-shot quick-chip values (patient_role/scheme/area) from the home screen */
+  prefill?: Record<string, string>;
 }
 
 export function turn(
@@ -190,6 +193,24 @@ export function generatePassport(
   return jsonFetch("/api/passport", {
     method: "POST",
     body: JSON.stringify({ session_id: sessionId, extra }),
+  });
+}
+
+// ---- case result dashboard ---------------------------------------------------
+export const getCase = (sessionId: string) =>
+  jsonFetch<CaseSnapshot>(`/api/case/${sessionId}`);
+
+/** follow-up assistant on the result dashboard — stateless server, local history */
+export function askCaseChat(
+  sessionId: string,
+  history: { role: "user" | "assistant"; content: string }[],
+  question: string,
+  signal?: AbortSignal
+): Promise<{ text: string }> {
+  return jsonFetch("/api/case-chat", {
+    method: "POST",
+    body: JSON.stringify({ session_id: sessionId, history, question }),
+    signal,
   });
 }
 
