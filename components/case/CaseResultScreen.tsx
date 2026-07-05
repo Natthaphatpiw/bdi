@@ -69,10 +69,10 @@ function Section({
   );
 }
 
-function SchemeLabel({ value }: { value?: string }) {
-  if (!value) return null;
+function SchemeLabel({ value, needsVerification }: { value?: string; needsVerification?: boolean }) {
+  if (!value) return needsVerification ? <Chip tone="info">สิทธิ์ยังไม่ยืนยัน</Chip> : null;
   const label = value === "UCS" ? "บัตรทอง" : value === "SSS" ? "ประกันสังคม" : value === "CSMBS" ? "ข้าราชการ" : value;
-  return <Chip tone="info">{label}</Chip>;
+  return <Chip tone="info">{needsVerification ? `${label} (ต้องตรวจสอบ)` : label}</Chip>;
 }
 
 function UnderstandingStrip({ snapshot }: { snapshot: CaseSnapshot }) {
@@ -88,7 +88,10 @@ function UnderstandingStrip({ snapshot }: { snapshot: CaseSnapshot }) {
     <div className="rounded-card border border-hairline bg-surface p-3 shadow-card">
       <p className="text-xs font-semibold text-ink-muted">AI เข้าใจว่า</p>
       <div className="mt-2 flex flex-wrap gap-2">
-        <SchemeLabel value={u.scheme as string | undefined} />
+        <SchemeLabel
+          value={u.scheme as string | undefined}
+          needsVerification={Boolean(u.scheme_needs_verification || u.scheme_unknown)}
+        />
         {chips.map((c) => (
           <Chip key={c} tone="brand">
             {c}
@@ -151,9 +154,32 @@ function TodaySection({
   );
 }
 
-function RightsSection({ rights, benefit }: { rights?: RightsCard; benefit?: BenefitCard }) {
+function RightsSection({
+  rights,
+  benefit,
+  understood,
+}: {
+  rights?: RightsCard;
+  benefit?: BenefitCard;
+  understood?: CaseSnapshot["understood"];
+}) {
+  const hasScheme = Boolean(understood?.scheme);
+  const needsVerification = Boolean(understood?.scheme_needs_verification);
   return (
     <Section title="สิทธิ์ที่เกี่ยวกับเคสนี้" icon={<BadgeCheck className="h-5 w-5 text-rights" aria-hidden="true" />}>
+      {!hasScheme && (
+        <div className="mb-3 rounded-btn border border-dashed border-hairline bg-canvas px-3 py-2 text-sm text-ink-soft">
+          <p className="font-semibold text-ink">ยังไม่ยืนยันสิทธิ์หลัก</p>
+          <p className="mt-1">
+            ระบบจะไม่ฟันธงว่าเป็นบัตรทอง/ประกันสังคมจนกว่าจะมีข้อมูลพอ แนะนำตรวจสอบสิทธิ์กับ สปสช. 1330 หรือประกันสังคม 1506
+          </p>
+        </div>
+      )}
+      {hasScheme && needsVerification && (
+        <div className="mb-3 rounded-btn bg-benefit-soft px-3 py-2 text-sm text-benefit">
+          สิทธิ์นี้ประเมินจากคำตอบเบื้องต้น ควรตรวจสอบสถานะและโรงพยาบาลตามสิทธิ์ก่อนใช้บริการ
+        </div>
+      )}
       {rights?.items?.length ? (
         <ul className="flex flex-col gap-2">
           {rights.items.map((item) => (
@@ -167,7 +193,9 @@ function RightsSection({ rights, benefit }: { rights?: RightsCard; benefit?: Ben
           ))}
         </ul>
       ) : (
-        <p className="text-sm text-ink-muted">ยังไม่มีรายการสิทธิ์เฉพาะเคสนี้</p>
+        <p className="text-sm text-ink-muted">
+          {hasScheme ? "ยังไม่มีรายการสิทธิ์เฉพาะเคสนี้" : "ต้องตอบ/ตรวจสอบสิทธิ์เพิ่มก่อนแสดงรายการที่ใช้ได้จริง"}
+        </p>
       )}
       {benefit?.items?.length ? (
         <div className="mt-4 flex flex-col gap-2">
@@ -417,7 +445,7 @@ export function CaseResultScreen({
       ) : (
         <div className="flex flex-col gap-4">
           <TodaySection care={parsed.care} next={parsed.next} safety={parsed.safety} />
-          <RightsSection rights={parsed.rights} benefit={parsed.benefit} />
+          <RightsSection rights={parsed.rights} benefit={parsed.benefit} understood={snapshot.understood} />
           <ValueSection value={parsed.value} />
           <FacilitiesSection card={parsed.facility} surface={surface} />
           <OptionsSection card={parsed.options} surface={surface} />

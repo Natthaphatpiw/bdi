@@ -140,6 +140,54 @@ function filterPassportRights(lines: string[], passport: AgentOut["passport"], p
   return blocked.slice(0, 5);
 }
 
+function isDentalContext(passport: AgentOut["passport"], prescreen: PrescreenResult | null): boolean {
+  const conditionText = [
+    passport?.condition,
+    prescreen?.disease,
+    ...(passport?.symptoms ?? []),
+    passport?.chief_complaint,
+  ]
+    .filter(Boolean)
+    .join(" ");
+  return /ฟัน|ทันต|เหงือก/.test(conditionText);
+}
+
+function amountFromLabel(label?: string): number {
+  const raw = label?.match(/[\d,]+/)?.[0];
+  return raw ? Number(raw.replace(/,/g, "")) || 0 : 0;
+}
+
+function passportUnclaimedValue(
+  value: ReturnType<typeof computeValueUnlock>,
+  passport: AgentOut["passport"],
+  prescreen: PrescreenResult | null
+): PassportData["unclaimed_value"] | undefined {
+  if (!value?.total_label) return undefined;
+  const dentalCase = isDentalContext(passport, prescreen);
+  const lines = value.lines.filter((line) => {
+    if (!dentalCase && /ฟัน|ทันต|ขูดหินปูน|ถอนฟัน|ฟันคุด/.test(line.label)) return false;
+    return Boolean(line.amount_label);
+  });
+  if (!lines.length) return undefined;
+
+  const definite = lines
+    .filter((line) => !line.tentative)
+    .reduce((sum, line) => sum + amountFromLabel(line.amount_label), 0);
+  const tentative = lines
+    .filter((line) => line.tentative)
+    .reduce((sum, line) => sum + amountFromLabel(line.amount_label), 0);
+  const total = definite || tentative;
+  if (!total) return undefined;
+
+  return {
+    total_label:
+      definite > 0
+        ? `อย่างน้อย ${definite.toLocaleString()} บาท/ปี`
+        : `อย่างน้อย ${tentative.toLocaleString()} บาท/ปี (รอยืนยันเงื่อนไข)`,
+    lines,
+  };
+}
+
 export async function buildPassport(
   sb: SupabaseClient,
   sessionId: string,
@@ -303,6 +351,7 @@ export async function buildPassport(
         screened_by: SOURCE_LABEL[prescreen.source] ?? "AI คัดกรองเบื้องต้น",
       }
     : undefined;
+  const finalScheme = mapScheme(slots.scheme ?? out.passport?.patient?.scheme ?? prof?.scheme);
 
   // ---- assemble the final passport (server adds ref/date/hotlines/disclaimer) ----
   const passport: PassportData = {
@@ -321,19 +370,20 @@ export async function buildPassport(
     generated_at: new Date().toISOString(),
     unclaimed_value:
       (() => {
-        const scheme = mapScheme(slots.scheme ?? out.passport?.patient?.scheme ?? prof?.scheme);
         const age =
           out.passport?.patient?.age ??
           slots.age ??
           (typeof prof?.birth_year === "number" ? CURRENT_YEAR - prof.birth_year : undefined);
-        const value = computeValueUnlock({ age, scheme }, passportAttrs(slots, prof));
-        return value && value.total_label
-          ? { total_label: value.total_label, lines: value.lines }
-          : undefined;
+        const value = computeValueUnlock({ age, scheme: finalScheme }, passportAttrs(slots, prof));
+        return passportUnclaimedValue(value, out.passport, prescreen);
       })(),
     hotlines: [
       { number: "1669", name: "การแพทย์ฉุกเฉิน" },
-      { number: "1330", name: "สายด่วน สปสช." },
+      ...(finalScheme === "SSS"
+        ? [{ number: "1506", name: "สายด่วนประกันสังคม" }]
+        : finalScheme === "CSMBS"
+          ? []
+          : [{ number: "1330", name: "สายด่วน สปสช." }]),
     ],
     disclaimer: DISCLAIMER,
   };

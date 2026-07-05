@@ -97,10 +97,32 @@ function applyAnswers(base: Understood, answers: Record<string, string>): Unders
     if (field === "__review_confirm") {
       u._review_confirm = true;
     } else if (field === "scheme") {
+      delete u.scheme_needs_verification;
+      delete u.scheme_confidence;
       if (/ประกันสังคม|ประกันตน|มาตรา|SSS/i.test(v)) u.scheme = "SSS";
       else if (/ข้าราชการ|รัฐวิสาหกิจ|เบิก|CSMBS/i.test(v)) u.scheme = "CSMBS";
-      // บัตรทอง / ไม่แน่ใจ → UCS (สิทธิพื้นฐานตามกฎหมายเมื่อไม่มีสิทธิอื่น)
-      else u.scheme = "UCS";
+      else if (/บัตรทอง|หลักประกันสุขภาพ|30 ?บาท|UCS/i.test(v)) u.scheme = "UCS";
+      else if (/ไม่แน่ใจ|ไม่รู้|ไม่ทราบ|ยังไม่|เอกชน/i.test(v)) {
+        delete u.scheme;
+        u.scheme_unknown = true;
+        if (/เอกชน/i.test(v)) u.private_insurance = true;
+      }
+      if (u.scheme) {
+        u.scheme_unknown = false;
+        u.scheme_confidence = "confirmed_by_user";
+      }
+    } else if (field === "coverage_basis") {
+      u.coverage_basis = v;
+      u.scheme_confidence = "probable_from_answers";
+      u.scheme_needs_verification = true;
+      if (/นายจ้าง|พนักงาน|บริษัท|ประกันสังคม|หักเงิน|สมทบ/i.test(v)) u.scheme = "SSS";
+      else if (/ข้าราชการ|พนักงานรัฐ|ครอบครัวข้าราชการ|คู่สมรส|บิดา|มารดา|บุตร/i.test(v)) u.scheme = "CSMBS";
+      else if (/อิสระ|ไม่ได้ทำงาน|ไม่มีนายจ้าง|ไม่ได้ส่งประกันสังคม|ไม่มีสิทธิอื่น|ว่างงาน/i.test(v)) u.scheme = "UCS";
+      else if (/เอกชน/i.test(v)) {
+        delete u.scheme;
+        u.private_insurance = true;
+      }
+      if (u.scheme) u.scheme_unknown = false;
     } else if (field === "age") {
       const nums = v.match(/\d+/g)?.map(Number) ?? [];
       if (/ต่ำกว่า\s*60/.test(v)) u.age = 50;
@@ -109,6 +131,8 @@ function applyAnswers(base: Understood, answers: Record<string, string>): Unders
       else if (nums.length === 1) u.age = nums[0];
     } else if (field === "area") {
       u.area = v.replace(/^เขต\s*/, "").trim();
+    } else if (field === "registered_facility") {
+      u.registered_facility = v;
     } else if (field === "patient_role") {
       u.patient_role = v;
     } else if (field === "symptoms") {
@@ -178,10 +202,18 @@ async function generateClinicalQuestions(u: Understood, text: string): Promise<T
 // actually claim (scheme → SSS details; age → elder allowance → pension check).
 // Conditional questions use show_if so the client stepper skips them unless the
 // earlier answer makes them relevant.
-const SCHEME_OPTIONS = ["บัตรทอง", "ประกันสังคม", "ข้าราชการ", "ไม่แน่ใจ"];
+const SCHEME_OPTIONS = ["ประกันสังคม", "บัตรทอง", "ข้าราชการ/ครอบครัวข้าราชการ", "ไม่แน่ใจ"];
+const COVERAGE_BASIS_OPTIONS = [
+  "พนักงานบริษัท/มีนายจ้างหักประกันสังคม",
+  "ข้าราชการหรือครอบครัวใช้สิทธิข้าราชการ",
+  "อาชีพอิสระ/ไม่ได้ส่งประกันสังคม/ไม่มีสิทธิอื่น",
+  "มีประกันสุขภาพเอกชน",
+  "ไม่แน่ใจ",
+];
 const AGE_OPTIONS = ["ต่ำกว่า 60 ปี", "60-69 ปี", "70-79 ปี", "80-89 ปี", "90 ปีขึ้นไป"];
 const ELDER_BANDS = ["60-69 ปี", "70-79 ปี", "80-89 ปี", "90 ปีขึ้นไป"];
 const AREA_OPTIONS = ["บางกะปิ", "ลาดพร้าว", "ห้วยขวาง", "วังทองหลาง"];
+const EMPLOYEE_COVERAGE_OPTION = COVERAGE_BASIS_OPTIONS[0];
 
 function buildQuestions(u: Understood): TurnQuestion[] {
   const intent = u.intent;
@@ -199,15 +231,26 @@ function buildQuestions(u: Understood): TurnQuestion[] {
   const qs: TurnQuestion[] = [];
 
   // 1) scheme — "จ่ายประกันสังคมอยู่ไหม / มีสิทธิอะไร"
-  const schemeUnknown = rightsRelevant && !u.scheme;
+  const schemeUnknown = rightsRelevant && !u.scheme && !u.scheme_unknown;
   if (schemeUnknown)
     qs.push({
       field: "scheme",
       label: "สิทธิการรักษา",
-      question: "มีสิทธิการรักษาแบบไหน / จ่ายประกันสังคมอยู่หรือไม่",
+      question: "ตอนนี้ทราบสิทธิรักษาหลักของผู้ป่วยไหม",
       options: SCHEME_OPTIONS,
       allow_other: true,
       other_placeholder: "เช่น ประกันเอกชน",
+    });
+
+  if (rightsRelevant && !u.scheme && !u.coverage_basis)
+    qs.push({
+      field: "coverage_basis",
+      label: "ช่วยประเมินสิทธิ์",
+      question: "ถ้าไม่แน่ใจสิทธิ์ เลือกสถานะที่ใกล้เคียงที่สุดเพื่อประเมินเบื้องต้น",
+      options: COVERAGE_BASIS_OPTIONS,
+      allow_other: true,
+      other_placeholder: "เช่น นักศึกษา, ทำงานอิสระ",
+      show_if: schemeUnknown ? { field: "scheme", any_of: ["ไม่แน่ใจ"] } : undefined,
     });
 
   // 2) SSS details — only when ประกันสังคม (known or just answered)
@@ -222,6 +265,15 @@ function buildQuestions(u: Understood): TurnQuestion[] {
       allow_other: false,
       show_if: sssShowIf,
     });
+  if (rightsRelevant && !isSSS && !u.scheme && !u.sss_section)
+    qs.push({
+      field: "sss_section",
+      label: "มาตราประกันสังคม",
+      question: "ถ้าเข้าข่ายประกันสังคม เป็นผู้ประกันตนมาตราไหน",
+      options: ["ม.33 (พนักงานบริษัท)", "ม.39 (สมัครใจ)", "ม.40 (อาชีพอิสระ)", "ไม่แน่ใจ"],
+      allow_other: false,
+      show_if: { field: "coverage_basis", any_of: [EMPLOYEE_COVERAGE_OPTION] },
+    });
   if (rightsRelevant && (isSSS || schemeUnknown) && u.contribution_months_in_last_15 == null)
     qs.push({
       field: "sss_months",
@@ -230,6 +282,15 @@ function buildQuestions(u: Understood): TurnQuestion[] {
       options: ["เกิน 3 เดือน", "ไม่ถึง 3 เดือน", "ไม่แน่ใจ"],
       allow_other: false,
       show_if: sssShowIf,
+    });
+  if (rightsRelevant && !isSSS && !u.scheme && u.contribution_months_in_last_15 == null)
+    qs.push({
+      field: "sss_months",
+      label: "การส่งเงินสมทบ",
+      question: "ถ้าเข้าข่ายประกันสังคม ส่งเงินสมทบเกิน 3 เดือนใน 15 เดือนล่าสุดหรือไม่",
+      options: ["เกิน 3 เดือน", "ไม่ถึง 3 เดือน", "ไม่แน่ใจ"],
+      allow_other: false,
+      show_if: { field: "coverage_basis", any_of: [EMPLOYEE_COVERAGE_OPTION] },
     });
 
   // 3) age — unlocks เบี้ยผู้สูงอายุ ฯลฯ
@@ -267,10 +328,28 @@ function buildQuestions(u: Understood): TurnQuestion[] {
       allow_other: true,
       other_placeholder: "พิมพ์ชื่อเขต/อำเภอ",
     });
+
+  if (rightsRelevant && (u.scheme === "UCS" || u.scheme === "SSS") && !u.registered_facility)
+    qs.push({
+      field: "registered_facility",
+      label: "สถานพยาบาลตามสิทธิ์",
+      question: "ทราบโรงพยาบาล/หน่วยบริการตามสิทธิ์ของผู้ป่วยไหม",
+      options: ["ทราบและใช้ที่เดิมได้", "ไม่ทราบ", "ต้องการหาที่ใกล้บ้านก่อน"],
+      allow_other: true,
+      other_placeholder: "พิมพ์ชื่อโรงพยาบาล/คลินิกตามสิทธิ์",
+    });
   // never re-ask a question the user already answered (incl. "ไม่แน่ใจ",
   // which intentionally leaves its slot null → rule stays INDETERMINATE)
   const answered = new Set((u._answered as string[] | undefined) ?? []);
-  return qs.filter((q) => !answered.has(q.field));
+  return qs.filter((q) => !answered.has(q.field) && showIfApplies(q, u));
+}
+
+function showIfApplies(q: TurnQuestion, u: Understood): boolean {
+  if (!q.show_if) return true;
+  const known = u[q.show_if.field];
+  if (known == null || known === "") return true; // let the client evaluate within the same panel
+  const answer = String(known);
+  return q.show_if.any_of.some((v) => answer.includes(v) || v.includes(answer));
 }
 
 // ---- 1) NLU: extract structured understanding -------------------------------
@@ -811,17 +890,25 @@ async function synthCareBody(
   const fallback =
     `อาการที่เล่ามาเข้าได้กับ${conditionTh ?? prescreen.disease ?? "ภาวะที่ควรตรวจเพิ่ม"} ` +
     `แนะนำให้ไปพบ${deptThai(prescreen.department) ?? "แพทย์"} (${severityThai(prescreen.severity)})` +
-    `${extra?.services?.length ? ` — ตรวจ${extra.services[0]}ได้ฟรีตามสิทธิ${extra.scheme ?? ""}` : ""}. ` +
+    `${extra?.services?.length && extra.scheme ? ` — ควรถามสถานพยาบาลเรื่องการใช้สิทธิ${extra.scheme}สำหรับ${extra.services[0]}` : ""}. ` +
     `นี่เป็นคำแนะนำเบื้องต้น ไม่ใช่การวินิจฉัยแทนแพทย์`;
   if (!featureFlags.hasLLM()) return fallback;
   const prompt = `เขียนคำแนะนำเชิงปรึกษา 2-3 ประโยคสั้นๆ ภาษาไทยสุภาพ อบอุ่น จากข้อมูล JSON ด้านล่าง โครงคำตอบ:
 (1) อาการที่เล่ามา "เข้าได้กับ/อาจเกี่ยวกับ" ภาวะอะไร (ใช้คำระวัง ห้ามฟันธงวินิจฉัย)
 (2) ควรทำอะไรต่อแบบจับต้องได้ — ไปแผนกไหน เร่งด่วนแค่ไหน และถ้ามี free_services_under_scheme ให้บอกว่าตรวจอะไรได้ฟรีตามสิทธิ
-ห้ามตัดสินสิทธิ์ ห้ามเวิ่นเว้อ ห้ามขึ้นต้นด้วย "จากข้อมูล":
+ห้ามตัดสินสิทธิ์ ห้ามเวิ่นเว้อ ห้ามขึ้นต้นด้วย "จากข้อมูล"
+ถ้ามี scheme ให้กล่าวถึงได้เฉพาะสิทธิ์นั้น ห้ามพูดชื่อสิทธิ์อื่น
+ถ้าไม่มี scheme ห้ามพูดว่าใช้บัตรทอง/ประกันสังคม/ข้าราชการ ให้บอกว่าควรตรวจสอบสิทธิ์ก่อน:
 ${JSON.stringify(facts)}
 ตอบเป็นข้อความล้วน ไม่เกิน 3 ประโยค`;
   const text = await llmText(prompt, { maxOutputTokens: 300 }).catch(() => "");
-  return text.trim() || fallback;
+  const out = text.trim();
+  if (!out) return fallback;
+  if (extra?.scheme === "ประกันสังคม" && /บัตรทอง|หลักประกันสุขภาพ|30 ?บาท|ข้าราชการ/.test(out)) return fallback;
+  if (extra?.scheme === "บัตรทอง" && /ประกันสังคม|ข้าราชการ/.test(out)) return fallback;
+  if (extra?.scheme === "ข้าราชการ" && /บัตรทอง|หลักประกันสุขภาพ|30 ?บาท|ประกันสังคม/.test(out)) return fallback;
+  if (!extra?.scheme && /บัตรทอง|หลักประกันสุขภาพ|30 ?บาท|ประกันสังคม|ข้าราชการ/.test(out)) return fallback;
+  return out;
 }
 
 async function synthNextSteps(
@@ -832,12 +919,19 @@ async function synthNextSteps(
 ): Promise<string[]> {
   const steps: string[] = [];
   steps.push("เตรียมบัตรประชาชน" + (u.scheme === "SSS" ? " + บัตรรับรองสิทธิประกันสังคม" : ""));
+  if (u.scheme_needs_verification) steps.push("ตรวจสอบสิทธิ์และสถานพยาบาลตามสิทธิ์ก่อนใช้บริการ");
+  if (u.registered_facility && !/ไม่ทราบ|ต้องการหา/.test(String(u.registered_facility))) {
+    steps.push(`โทรสอบถามหน่วยบริการตามสิทธิ์: ${u.registered_facility}`);
+  }
   if (hasFacility) steps.push("โทรนัด/สอบถามสถานพยาบาลก่อนไป");
   const indeterminate = benefitCard?.items.find((i) => i.status === "INDETERMINATE");
   if (indeterminate?.ask_th) steps.push(`ตอบคำถามเพื่อยืนยันสิทธิ: ${indeterminate.ask_th}`);
   if (prescreen?.escalate_hotline) steps.unshift(`ถ้าอาการแย่ลงเฉียบพลัน โทร ${prescreen.escalate_hotline} ทันที`);
   else steps.push("ถ้าอาการรุนแรง/ฉุกเฉิน โทร 1669");
-  steps.push("ถ้าไม่แน่ใจเรื่องสิทธิ โทร สปสช. 1330");
+  if (u.scheme === "SSS") steps.push("ถ้าไม่แน่ใจเรื่องสิทธิประกันสังคม โทร 1506");
+  else if (u.scheme === "UCS") steps.push("ถ้าไม่แน่ใจเรื่องบัตรทอง โทร สปสช. 1330");
+  else if (u.scheme === "CSMBS") steps.push("ถ้าไม่แน่ใจสิทธิข้าราชการ ตรวจสอบกับหน่วยงานต้นสังกัดหรือกรมบัญชีกลาง");
+  else steps.push("ถ้าไม่แน่ใจสิทธิรักษาหลัก โทร สปสช. 1330 หรือประกันสังคม 1506");
   return [...new Set(steps)].slice(0, 6);
 }
 

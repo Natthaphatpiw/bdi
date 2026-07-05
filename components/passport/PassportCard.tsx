@@ -94,35 +94,6 @@ export const PassportCard = forwardRef<HTMLDivElement, { data: PassportData }>(
             </div>
           )}
 
-          {/* unclaimed entitlement value (deterministic, rule-engine-backed) */}
-          {data.unclaimed_value && (
-            <div className="mt-3 rounded-btn bg-benefit-soft px-3 py-2.5">
-              <p className="flex items-center gap-1.5 text-[12px] font-semibold text-benefit">
-                <Wallet className="h-3.5 w-3.5" aria-hidden="true" />
-                มูลค่าสิทธิ์ที่อาจยังไม่ได้ใช้
-              </p>
-              <p className="mt-0.5 text-[18px] font-bold leading-tight text-benefit">
-                {data.unclaimed_value.total_label}
-              </p>
-              <ul className="mt-1 flex flex-col gap-0.5">
-                {data.unclaimed_value.lines.map((l, i) => (
-                  <li key={i} className="flex items-baseline justify-between gap-2 text-[11px] text-ink-soft">
-                    <span className="min-w-0 flex-1">{l.label}</span>
-                    {l.amount_label && (
-                      <span className="shrink-0 font-medium">
-                        {l.amount_label}
-                        {l.tentative ? "*" : ""}
-                      </span>
-                    )}
-                  </li>
-                ))}
-              </ul>
-              {data.unclaimed_value.lines.some((l) => l.tentative) && (
-                <p className="mt-1 text-[10px] text-ink-muted">* รอยืนยันเงื่อนไข</p>
-              )}
-            </div>
-          )}
-
           {/* chief complaint */}
           <Section icon={<HeartPulse className="h-4 w-4" aria-hidden="true" />} title="เรื่องที่มา">
             <p>{data.chief_complaint}</p>
@@ -235,6 +206,35 @@ export const PassportCard = forwardRef<HTMLDivElement, { data: PassportData }>(
           )}
 
           {data.notes && <p className="mt-3 text-[12px] text-ink-soft">หมายเหตุ: {data.notes}</p>}
+
+          {/* unclaimed entitlement value (deterministic, rule-engine-backed) */}
+          {data.unclaimed_value && (
+            <div className="mt-3 rounded-btn bg-benefit-soft px-3 py-2.5">
+              <p className="flex items-center gap-1.5 text-[12px] font-semibold text-benefit">
+                <Wallet className="h-3.5 w-3.5" aria-hidden="true" />
+                มูลค่าสิทธิ์ที่อาจยังไม่ได้ใช้
+              </p>
+              <p className="mt-0.5 text-[18px] font-bold leading-tight text-benefit">
+                {data.unclaimed_value.total_label}
+              </p>
+              <ul className="mt-1 flex flex-col gap-0.5">
+                {data.unclaimed_value.lines.map((l, i) => (
+                  <li key={i} className="flex items-baseline justify-between gap-2 text-[11px] text-ink-soft">
+                    <span className="min-w-0 flex-1">{l.label}</span>
+                    {l.amount_label && (
+                      <span className="shrink-0 font-medium">
+                        {l.amount_label}
+                        {l.tentative ? "*" : ""}
+                      </span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+              {data.unclaimed_value.lines.some((l) => l.tentative) && (
+                <p className="mt-1 text-[10px] text-ink-muted">* รอยืนยันเงื่อนไข</p>
+              )}
+            </div>
+          )}
 
           {/* hotlines */}
           {data.hotlines && data.hotlines.length > 0 && (

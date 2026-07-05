@@ -81,7 +81,7 @@ export function HomeScreen({ surface, basePath }: Props) {
   const [session, setSession] = useState<string | null>(null);
   const [text, setText] = useState("");
   const [role, setRole] = useState("ผู้ป่วยเอง");
-  const [scheme, setScheme] = useState("ไม่แน่ใจ");
+  const [scheme, setScheme] = useState("");
   const [area, setArea] = useState("");
   const [questions, setQuestions] = useState<TurnQuestion[]>([]);
   const [questionsKey, setQuestionsKey] = useState(0);
@@ -120,7 +120,7 @@ export function HomeScreen({ surface, basePath }: Props) {
         text: text.trim(),
         prefill: {
           patient_role: role,
-          scheme,
+          ...(scheme ? { scheme } : {}),
           ...(area ? { area } : {}),
         },
       });
@@ -178,7 +178,15 @@ export function HomeScreen({ surface, basePath }: Props) {
       ]
         .filter(Boolean)
         .join(" · ");
-      await turn(session, { type: "answers", answers, text: summary });
+      const resp = await turn(session, { type: "answers", answers, text: summary });
+      setUnderstood(resp.understood);
+      setCards(resp.cards);
+      if (resp.questions?.length) {
+        setQuestions(resp.questions);
+        setQuestionsKey((k) => k + 1);
+        setFlow("questions");
+        return;
+      }
       router.push(resultHref);
     } catch (e) {
       toast(e instanceof Error ? e.message : "ยืนยันข้อมูลไม่สำเร็จ", "error");
@@ -239,7 +247,12 @@ export function HomeScreen({ surface, basePath }: Props) {
               <p className="mb-2 text-xs font-semibold text-ink-muted">สิทธิ์</p>
               <div className="flex flex-wrap gap-2">
                 {SCHEME_OPTIONS.map((opt) => (
-                  <Chip key={opt.value} selected={scheme === opt.value} onClick={() => setScheme(opt.value)} tone="info">
+                  <Chip
+                    key={opt.value}
+                    selected={scheme === opt.value}
+                    onClick={() => setScheme((current) => (current === opt.value ? "" : opt.value))}
+                    tone="info"
+                  >
                     {opt.label}
                   </Chip>
                 ))}
@@ -320,6 +333,7 @@ export function HomeScreen({ surface, basePath }: Props) {
                 onChange={(e) => setDraft((d) => ({ ...d, scheme: e.target.value }))}
                 className="w-full rounded-btn border border-hairline px-3 py-2 text-sm text-ink"
               >
+                <option value="">ยังไม่ระบุ</option>
                 {SCHEME_OPTIONS.map((opt) => <option key={opt.value}>{opt.value}</option>)}
               </select>
             </ReviewField>
