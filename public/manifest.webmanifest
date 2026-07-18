@@ -1,0 +1,17 @@
+{
+  "name": "รู้สิทธิ์ รู้สุข",
+  "short_name": "รู้สิทธิ์ รู้สุข",
+  "description": "เล่าอาการครั้งเดียว ช่วยคัดกรอง ตรวจสิทธิ์ และจับคู่สถานที่ที่เหมาะกับเคสของคุณ",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#F8FAFC",
+  "theme_color": "#16315B",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

@@ -14,12 +14,14 @@ export const metadata: Metadata = {
   description:
     "เล่าอาการครั้งเดียว ช่วยคัดกรอง ตรวจสิทธิ์ และจับคู่สถานที่ที่เหมาะกับเคสของคุณ",
   icons: { icon: "/icon.svg" },
+  manifest: "/manifest.webmanifest",
 };
 
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  themeColor: "#0E9F6E",
+  // ตรงกับโทนแบรนด์หลัก (กรมท่า) ใน tailwind.config.ts
+  themeColor: "#16315B",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

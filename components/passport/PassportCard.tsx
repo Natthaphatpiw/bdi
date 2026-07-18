@@ -63,12 +63,24 @@ export const PassportCard = forwardRef<HTMLDivElement, { data: PassportData }>(
         className="mx-auto w-full max-w-[440px] overflow-hidden rounded-card border border-hairline bg-white"
         style={{ fontFamily: "var(--font-thai), system-ui, sans-serif" }}
       >
-        {/* header */}
-        <div className="flex items-center gap-2 bg-brand px-4 py-3 text-white">
+        {/* header — แดงเฉพาะ ER Passport (บริบทฉุกเฉินเท่านั้น) */}
+        <div
+          className={
+            data.emergency
+              ? "flex items-center gap-2 bg-safety px-4 py-3 text-white"
+              : "flex items-center gap-2 bg-brand px-4 py-3 text-white"
+          }
+        >
           <ShieldPlus className="h-5 w-5" aria-hidden="true" />
           <div className="flex-1">
-            <p className="text-[15px] font-bold leading-none">Case Passport</p>
-            <p className="mt-0.5 text-[11px] opacity-90">ข้อมูลสรุปก่อนเข้ารับบริการ · รู้สิทธิ์ รู้สุข</p>
+            <p className="text-[15px] font-bold leading-none">
+              {data.emergency ? "ER Passport — เอกสารยื่นห้องฉุกเฉิน" : "Case Passport"}
+            </p>
+            <p className="mt-0.5 text-[11px] opacity-90">
+              {data.emergency
+                ? "ข้อมูลวิกฤตสำหรับพยาบาลคัดกรอง · รู้สิทธิ์ รู้สุข"
+                : "ข้อมูลสรุปก่อนเข้ารับบริการ · รู้สิทธิ์ รู้สุข"}
+            </p>
           </div>
           <div className="text-right">
             <p className="inline-flex items-center gap-1 text-[12px] font-semibold">
@@ -80,6 +92,57 @@ export const PassportCard = forwardRef<HTMLDivElement, { data: PassportData }>(
         </div>
 
         <div className="px-4 pb-4 pt-2">
+          {/* ER critical block — ข้อมูลวิกฤตอยู่บนสุด อ่านจบใน 15 วินาที */}
+          {data.emergency && (
+            <div className="mb-1 rounded-btn border border-safety/40 bg-safety-soft px-3 py-2.5">
+              <p className="text-[13px] font-bold leading-snug text-safety">
+                {data.emergency.ucep_line}
+              </p>
+              <table className="mt-2 w-full text-[13px]">
+                <tbody>
+                  {data.emergency.symptom && (
+                    <tr>
+                      <td className="py-0.5 pr-2 align-top text-ink-muted">อาการ</td>
+                      <td className="py-0.5 font-semibold text-ink">{data.emergency.symptom}</td>
+                    </tr>
+                  )}
+                  {data.emergency.onset && (
+                    <tr>
+                      <td className="py-0.5 pr-2 align-top text-ink-muted">เริ่มอาการ</td>
+                      <td className="py-0.5 font-semibold text-ink">{data.emergency.onset}</td>
+                    </tr>
+                  )}
+                  {data.emergency.befast && (
+                    <tr>
+                      <td className="py-0.5 pr-2 align-top text-ink-muted">เช็ค BEFAST</td>
+                      <td className="py-0.5 font-medium text-ink">
+                        {(["f", "a", "s"] as const)
+                          .filter((k) => data.emergency!.befast?.[k])
+                          .map((k) => {
+                            const label = k === "f" ? "ใบหน้า" : k === "a" ? "แขน" : "การพูด";
+                            return `${label}: ${data.emergency!.befast![k] === "yes" ? "ผิดปกติ" : "ปกติ"}`;
+                          })
+                          .join(" · ")}
+                      </td>
+                    </tr>
+                  )}
+                  <tr>
+                    <td className="py-0.5 pr-2 align-top text-ink-muted">โรคประจำตัว/ยา</td>
+                    <td className="py-0.5 font-medium text-ink">
+                      {data.emergency.conditions_meds || "—"}
+                    </td>
+                  </tr>
+                  {data.emergency.contact_phone && (
+                    <tr>
+                      <td className="py-0.5 pr-2 align-top text-ink-muted">เบอร์ญาติ/ติดต่อกลับ</td>
+                      <td className="py-0.5 font-semibold text-ink">{data.emergency.contact_phone}</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+
           {/* patient chips */}
           {chips.length > 0 && (
             <div className="flex flex-wrap gap-1.5 border-b border-hairline pb-3">

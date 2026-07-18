@@ -287,6 +287,10 @@ export interface Profile {
   area_code?: string | null;
   sss_section?: number | null;
   receives_state_pension?: boolean | null;
+  /** เบอร์โทรกลับสำหรับเหตุฉุกเฉิน (Emergency Co-pilot จำค่าไว้) */
+  emergency_phone?: string | null;
+  /** โรคประจำตัว/ยา สำหรับสคริปต์ 1669 และ ER Passport */
+  conditions_meds?: string | null;
 }
 export type ConsentScope = "chat" | "phr" | "wearable" | "doc";
 export interface Consent {
@@ -320,6 +324,17 @@ export interface SessionResponse {
 }
 
 // ---- Case Passport ----
+/** ER Passport (Guardian Emergency Mode) — ข้อมูลวิกฤตที่พยาบาลคัดกรองต้องเห็นก่อน */
+export interface PassportEmergencyData {
+  symptom?: string;
+  onset?: string; // เวลาเริ่มอาการ (จากคำถาม onset ใน BEFAST)
+  befast?: { f?: "yes" | "no"; a?: "yes" | "no"; s?: "yes" | "no" };
+  conditions_meds?: string;
+  contact_phone?: string;
+  /** บรรทัดสิทธิ UCEP — แสดงบนสุดของเอกสารเสมอ */
+  ucep_line: string;
+}
+
 export interface PassportData {
   ref_code: string; // short reference, e.g. CP-7QK2
   generated_at: string; // ISO
@@ -348,6 +363,8 @@ export interface PassportData {
     total_label: string;
     lines: { label: string; amount_label?: string; note?: string; tentative?: boolean }[];
   };
+  /** Guardian Emergency Mode — ส่วนข้อมูลวิกฤตของ ER Passport */
+  emergency?: PassportEmergencyData;
   /** the actual triage result from the 27B prescreen (pulled from audit_log) */
   screening?: {
     condition_th?: string;

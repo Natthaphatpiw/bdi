@@ -3,6 +3,7 @@
 // ขนาดตัวอักษร และปุ่มลบข้อมูลทั้งหมด (PDPA). surface-agnostic.
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import {
   ShieldCheck,
   Loader2,
@@ -12,6 +13,8 @@ import {
   HeartPulse,
   Watch,
   FileText,
+  Activity,
+  BellRing,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import type {
@@ -34,6 +37,11 @@ import { useToast } from "@/store/toast";
 import { Button } from "@/components/ui/Button";
 import { Chip } from "@/components/ui/Chip";
 import { Skeleton } from "@/components/ui/Skeleton";
+import {
+  getGuardianConsent,
+  revokeGuardianConsent,
+} from "@/lib/guardian/client";
+import type { GuardianConsentStatus } from "@/lib/guardian/types";
 
 interface Props {
   surface: "web" | "line";
@@ -118,10 +126,14 @@ export function ProfileScreen({ surface, basePath }: Props) {
   const toast = useToast();
   const largeText = useUi((s) => s.largeText);
   const setLargeText = useUi((s) => s.setLargeText);
+  const guardianSound = useUi((s) => s.guardianSound);
+  const setGuardianSound = useUi((s) => s.setGuardianSound);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [guardianConsent, setGuardianConsent] = useState<GuardianConsentStatus | null>(null);
+  const [revoking, setRevoking] = useState(false);
 
   // editable profile fields (string-backed for inputs)
   const [birthYear, setBirthYear] = useState<string>("");
@@ -159,6 +171,9 @@ export function ProfileScreen({ surface, basePath }: Props) {
         };
         for (const c of consentRes.consents) map[c.scope] = c.granted;
         setConsents(map);
+        getGuardianConsent()
+          .then((g) => !cancelled && setGuardianConsent(g))
+          .catch(() => !cancelled && setGuardianConsent({ active: false }));
       } catch (e) {
         if (cancelled) return;
         toast(e instanceof ApiClientError ? e.message : "โหลดข้อมูลไม่สำเร็จ", "error");
@@ -206,6 +221,23 @@ export function ProfileScreen({ surface, basePath }: Props) {
     } catch (e) {
       setConsents((c) => ({ ...c, [scope]: prev }));
       toast(e instanceof ApiClientError ? e.message : "บันทึกการยินยอมไม่สำเร็จ", "error");
+    }
+  }
+
+  async function handleGuardianRevoke() {
+    const ok = window.confirm(
+      "ถอนความยินยอมและลบข้อมูลพฤติกรรมทั้งหมด (ผลเช็คสุขภาพและเส้นฐานของคุณ)? การลบไม่สามารถกู้คืนได้"
+    );
+    if (!ok) return;
+    setRevoking(true);
+    try {
+      await revokeGuardianConsent();
+      setGuardianConsent({ active: false });
+      toast("ถอนความยินยอมและลบข้อมูลพฤติกรรมแล้ว", "success");
+    } catch (e) {
+      toast(e instanceof ApiClientError ? e.message : "ถอนความยินยอมไม่สำเร็จ", "error");
+    } finally {
+      setRevoking(false);
     }
   }
 
@@ -373,6 +405,80 @@ export function ProfileScreen({ surface, basePath }: Props) {
                 </li>
               ))}
             </ul>
+          </section>
+
+          {/* ความเป็นส่วนตัว — Guardian / เช็คสุขภาพประจำเดือน */}
+          <section className="rounded-card bg-surface p-4 shadow-card card-enter">
+            <div className="mb-3 flex items-center gap-2">
+              <Activity className="h-5 w-5 text-brand" aria-hidden />
+              <h2 className="text-base font-semibold text-ink">ความเป็นส่วนตัว · เช็คสุขภาพ</h2>
+            </div>
+
+            <div className="flex items-center gap-3 py-1">
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium text-ink">ข้อมูลพฤติกรรมระหว่างเช็คสุขภาพ</p>
+                <p className="text-xs text-ink-muted">
+                  {guardianConsent == null
+                    ? "กำลังโหลดสถานะ…"
+                    : guardianConsent.active
+                      ? `ยินยอมแล้วเมื่อ ${
+                          guardianConsent.granted_at
+                            ? new Date(guardianConsent.granted_at).toLocaleDateString("th-TH", {
+                                day: "numeric",
+                                month: "short",
+                                year: "numeric",
+                              })
+                            : "ก่อนหน้านี้"
+                        } — เก็บเฉพาะระหว่างทำแบบเช็ค`
+                      : "ยังไม่ได้ให้ความยินยอม — ระบบจะขอก่อนเริ่มเช็คครั้งแรก"}
+                </p>
+              </div>
+              <span
+                className={cn(
+                  "shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold",
+                  guardianConsent?.active
+                    ? "bg-rights-soft text-rights"
+                    : "bg-canvas text-ink-muted"
+                )}
+              >
+                {guardianConsent?.active ? "เปิดใช้อยู่" : "ปิดอยู่"}
+              </span>
+            </div>
+
+            <div className="mt-2 flex items-center gap-3 border-t border-hairline py-3">
+              <BellRing className="h-5 w-5 shrink-0 text-brand" aria-hidden />
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium text-ink">เสียงแจ้งเตือนเมื่อพบสัญญาณผิดปกติ</p>
+                <p className="text-xs text-ink-muted">สั่นเตือนยังทำงานตามปกติแม้ปิดเสียง</p>
+              </div>
+              <Toggle
+                on={guardianSound}
+                onChange={setGuardianSound}
+                label="เสียงแจ้งเตือนเมื่อพบสัญญาณผิดปกติ"
+              />
+            </div>
+
+            <Link
+              href={`${basePath}/health-check`}
+              className="block border-t border-hairline py-3 text-sm font-medium text-brand underline"
+            >
+              ไปหน้าเช็คสุขภาพประจำเดือน
+            </Link>
+
+            {guardianConsent?.active && (
+              <Button
+                variant="outline"
+                fullWidth
+                className="mt-1 border-safety/40 text-safety"
+                onClick={handleGuardianRevoke}
+                disabled={revoking}
+                leftIcon={
+                  revoking ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Trash2 className="h-4 w-4" aria-hidden />
+                }
+              >
+                {revoking ? "กำลังลบ…" : "ถอนความยินยอมและลบข้อมูลพฤติกรรม"}
+              </Button>
+            )}
           </section>
 
           {/* Accessibility */}

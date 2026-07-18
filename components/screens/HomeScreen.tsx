@@ -1,14 +1,17 @@
 "use client";
 // HomeScreen — one-shot case intake. The product creates a Case Passport and
 // result dashboard from a health story; chat is only a follow-up assistant.
-import { useMemo, useState } from "react";
+// Guardian สามารถส่งเรื่องเล่าสังเคราะห์ (pendingStory) เข้ามาให้เริ่มเคสอัตโนมัติ
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowRight, FileText, History, Loader2, MapPin, Pencil, ShieldCheck, UserRound } from "lucide-react";
 import { QuestionPanel } from "@/components/chat/QuestionPanel";
 import { Button } from "@/components/ui/Button";
 import { Chip } from "@/components/ui/Chip";
+import { HomeGuardianCards } from "@/components/guardian/HomeGuardianCards";
 import { createSession, turn } from "@/lib/client/api";
+import { useGuardian } from "@/lib/guardian/store";
 import type { Scheme, TurnQuestion, Understood } from "@/lib/types";
 import { useToast } from "@/store/toast";
 import { useUi } from "@/store/ui";
@@ -74,8 +77,11 @@ function ReviewField({
 export function HomeScreen({ surface, basePath }: Props) {
   const router = useRouter();
   const toast = useToast();
-  const { displayName } = useAuth();
+  const { ready, displayName } = useAuth();
   const setSessionId = useUi((s) => s.setSessionId);
+  const pendingStory = useGuardian((s) => s.pendingStory);
+  const setPendingStory = useGuardian((s) => s.setPendingStory);
+  const pendingConsumed = useRef(false);
 
   const [flow, setFlow] = useState<Flow>("input");
   const [session, setSession] = useState<string | null>(null);
@@ -92,6 +98,18 @@ export function HomeScreen({ surface, basePath }: Props) {
 
   const canSubmit = text.trim().length >= 8 && !busy;
 
+  // Guardian triage prefill — เรื่องเล่าสังเคราะห์จากอาการที่ผู้ใช้เลือก
+  // ถูกส่งเข้า flow หลักเดิมทันที (ไม่มีเส้น triage ใหม่)
+  useEffect(() => {
+    if (!ready || !pendingStory || pendingConsumed.current || flow !== "input") return;
+    pendingConsumed.current = true;
+    const story = pendingStory;
+    setPendingStory(null);
+    setText(story);
+    void startCase(story);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, pendingStory, flow]);
+
   function setReviewState(u: Understood) {
     setDraft({
       patient_role: (u.patient_role as string | undefined) ?? role,
@@ -104,8 +122,9 @@ export function HomeScreen({ surface, basePath }: Props) {
     setFlow("review");
   }
 
-  async function startCase() {
-    if (!canSubmit) return;
+  async function startCase(overrideText?: string) {
+    const storyText = (overrideText ?? text).trim();
+    if (storyText.length < 8 || busy) return;
     setFlow("submitting");
     try {
       const { session_id } = await createSession(surface === "line" ? "line" : "web");
@@ -113,7 +132,7 @@ export function HomeScreen({ surface, basePath }: Props) {
       setSessionId(session_id);
       const resp = await turn(session_id, {
         type: "text",
-        text: text.trim(),
+        text: storyText,
         prefill: {
           patient_role: role,
           ...(scheme ? { scheme } : {}),
@@ -213,12 +232,9 @@ export function HomeScreen({ surface, basePath }: Props) {
         <p className="mt-2 text-sm leading-relaxed text-ink-soft">
           เล่าอาการครั้งเดียว ได้เส้นทางดูแลที่ทำตามได้
         </p>
-        <Link href={surface === "line" ? "/liff/demo" : "/demo"} className="mt-3 block">
-          <Button variant="outline" fullWidth>
-            ทดลองโหมดสาธิตสำหรับบูท
-          </Button>
-        </Link>
       </header>
+
+      {flow === "input" && <HomeGuardianCards basePath={basePath} />}
 
       {flow === "input" && (
         <section className="card-enter rounded-card border border-hairline bg-surface p-4 shadow-card">

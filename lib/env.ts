@@ -58,6 +58,11 @@ export const env = {
 
   appName: get("NEXT_PUBLIC_APP_NAME", "รู้สิทธิ์ รู้สุข"),
 
+  // Guardian Mode — client components read these NEXT_PUBLIC_* statically;
+  // mirrored here for server-side checks/telemetry only.
+  guardianSimEnabled: get("NEXT_PUBLIC_GUARDIAN_SIM") === "1",
+  rideAppUrl: get("NEXT_PUBLIC_RIDE_APP_URL"),
+
   // Admin allow-list (comma-separated Supabase user ids) for /api/admin/*
   adminUserIds: get("ADMIN_USER_IDS")
     .split(",")

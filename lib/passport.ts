@@ -7,7 +7,14 @@ import { casePassportAgent, CASE_PASSPORT_INSTRUCTIONS } from "@/mastra/agents/c
 import { llmJson } from "./llm";
 import { deptThai, severityThai, conditionThaiFor } from "./triageLabels";
 import { computeValueUnlock } from "./valueUnlock";
-import type { Card, PassportData, PassportResult, PrescreenResult, Understood } from "./types";
+import type {
+  Card,
+  PassportData,
+  PassportEmergencyData,
+  PassportResult,
+  PrescreenResult,
+  Understood,
+} from "./types";
 
 const CURRENT_YEAR = new Date().getFullYear();
 
@@ -186,6 +193,95 @@ function passportUnclaimedValue(
         : `อย่างน้อย ${tentative.toLocaleString()} บาท/ปี (รอยืนยันเงื่อนไข)`,
     lines,
   };
+}
+
+// ---- ER Passport (Guardian Emergency Mode) ----------------------------------
+// Deterministic — no LLM call. In an emergency the passport must render
+// instantly and never fail on provider latency; every field comes verbatim
+// from the guardian context + profile. ข้อมูลวิกฤตเรียงบนสุด อ่านจบใน 15 วินาที
+const UCEP_LINE =
+  "ผู้ป่วยฉุกเฉินวิกฤต ขอใช้สิทธิ UCEP — เข้ารักษาโรงพยาบาลที่ใกล้ที่สุดได้ทุกแห่ง รวมเอกชน ไม่ต้องสำรองจ่ายภายใน 72 ชั่วโมงแรก";
+
+export interface EmergencyPassportInput {
+  symptom?: string;
+  onset?: string;
+  befast?: { f?: "yes" | "no"; a?: "yes" | "no"; s?: "yes" | "no" };
+  conditions_meds?: string;
+  contact_phone?: string;
+}
+
+const befastLabel: Record<string, string> = { f: "ใบหน้า", a: "แขน", s: "การพูด" };
+
+export async function buildEmergencyPassport(
+  sb: SupabaseClient,
+  sessionId: string,
+  input: EmergencyPassportInput
+): Promise<PassportResult> {
+  const [{ data: state }, { data: prof }] = await Promise.all([
+    sb.from("session_state").select("slots").eq("session_id", sessionId).maybeSingle(),
+    sb
+      .from("profiles")
+      .select("birth_year, scheme, area_code, emergency_phone, conditions_meds")
+      .maybeSingle(),
+  ]);
+  const slots = (state?.slots ?? {}) as Understood;
+
+  const age =
+    (typeof slots.age === "number" ? slots.age : undefined) ??
+    (typeof prof?.birth_year === "number" ? CURRENT_YEAR - prof.birth_year : undefined);
+  const schemeCode = mapScheme(slots.scheme ?? prof?.scheme);
+  const schemeLabel =
+    schemeCode === "UCS"
+      ? "บัตรทอง"
+      : schemeCode === "SSS"
+        ? "ประกันสังคม"
+        : schemeCode === "CSMBS"
+          ? "ข้าราชการ"
+          : undefined;
+
+  const abnormal = Object.entries(input.befast ?? {})
+    .filter(([, v]) => v === "yes")
+    .map(([k]) => befastLabel[k] ?? k);
+
+  const emergency: PassportEmergencyData = {
+    symptom: input.symptom,
+    onset: input.onset,
+    befast: input.befast,
+    conditions_meds: input.conditions_meds || prof?.conditions_meds || undefined,
+    contact_phone: input.contact_phone || prof?.emergency_phone || undefined,
+    ucep_line: UCEP_LINE,
+  };
+
+  const passport: PassportData = {
+    ref_code: refCode(),
+    generated_at: new Date().toISOString(),
+    patient: {
+      role: (slots.patient_role as string | undefined) ?? "ผู้ป่วยเอง",
+      age,
+      scheme: schemeLabel,
+      area: (slots.area as string | undefined) ?? prof?.area_code ?? undefined,
+    },
+    chief_complaint: input.symptom
+      ? `เหตุฉุกเฉิน — ${input.symptom}`
+      : "เหตุฉุกเฉิน — อาการผิดปกติเฉียบพลัน",
+    symptoms: input.symptom ? [input.symptom] : [],
+    triage: { severity: "ฉุกเฉินวิกฤต" },
+    rights_summary: [UCEP_LINE],
+    prepared_documents: ["บัตรประชาชนตัวจริงของผู้ป่วย", "ยาที่กินประจำ (ถ้ามี)"],
+    emergency,
+    hotlines: [
+      { number: "1669", name: "การแพทย์ฉุกเฉิน" },
+      { number: "1646", name: "ศูนย์เอราวัณ (กรุงเทพฯ)" },
+      { number: "1330", name: "สอบถามสิทธิ สปสช." },
+    ],
+    notes: abnormal.length
+      ? `ผลเช็คเบื้องต้น BEFAST พบความผิดปกติที่ ${abnormal.join(", ")}${
+          input.onset ? ` (เริ่มอาการ: ${input.onset})` : ""
+        } — ข้อมูลนี้ให้แพทย์ใช้ประเมินภาวะหลอดเลือดสมองต่อไป`
+      : undefined,
+    disclaimer: DISCLAIMER,
+  };
+  return { status: "ready", passport };
 }
 
 export async function buildPassport(

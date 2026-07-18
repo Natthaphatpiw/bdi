@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "rusit-dev",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "port": 3000
+    },
+    {
+      "name": "rusit-dev-sim",
+      "runtimeExecutable": "env",
+      "runtimeArgs": ["NEXT_PUBLIC_GUARDIAN_SIM=1", "npm", "run", "dev"],
+      "port": 3000
+    }
+  ]
+}

@@ -2,6 +2,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState, type ReactNode } from "react";
 import { AuthProvider, type Surface } from "@/lib/client/auth";
+import { GuardianProvider } from "@/components/guardian/GuardianProvider";
 
 export function Providers({ surface, children }: { surface: Surface; children: ReactNode }) {
   const [qc] = useState(
@@ -12,7 +13,9 @@ export function Providers({ surface, children }: { surface: Surface; children: R
   );
   return (
     <QueryClientProvider client={qc}>
-      <AuthProvider surface={surface}>{children}</AuthProvider>
+      <AuthProvider surface={surface}>
+        <GuardianProvider surface={surface}>{children}</GuardianProvider>
+      </AuthProvider>
     </QueryClientProvider>
   );
 }
