@@ -46,7 +46,10 @@ export function MicButton({
           onPointerDown: () => onStart(),
           onPointerUp: () => onStop(),
           onPointerLeave: () => {
-            if (listening) onStop();
+            if (listening) (onCancel ?? onStop)();
+          },
+          onPointerCancel: () => {
+            if (listening) (onCancel ?? onStop)();
           },
         }
       : {};

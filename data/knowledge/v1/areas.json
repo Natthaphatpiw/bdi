@@ -1,0 +1,72 @@
+{
+  "schemaVersion": "1.0.0",
+  "generatedAt": "2026-07-18T00:00:00+07:00",
+  "records": [
+    {
+      "id": "area:th",
+      "area_code": "TH",
+      "name_th": "ประเทศไทย",
+      "level": "COUNTRY",
+      "parent_id": null,
+      "source_id": "doc:demo:synthetic",
+      "effective_from": "2026-07-18",
+      "effective_to": null,
+      "verification_status": "DEMO_ONLY"
+    },
+    {
+      "id": "area:bkk",
+      "area_code": "BKK",
+      "name_th": "กรุงเทพมหานคร",
+      "level": "PROVINCE_SPECIAL_ADMIN",
+      "parent_id": "area:th",
+      "source_id": "doc:bma:health-centers",
+      "effective_from": "2026-01-01",
+      "effective_to": null,
+      "verification_status": "VERIFIED"
+    },
+    {
+      "id": "area:bkk:lat-phrao",
+      "area_code": "BKK-LATPHRAO",
+      "name_th": "ลาดพร้าว",
+      "level": "DISTRICT",
+      "parent_id": "area:bkk",
+      "source_id": "doc:bma:health-centers",
+      "effective_from": "2026-01-01",
+      "effective_to": null,
+      "verification_status": "VERIFIED"
+    },
+    {
+      "id": "area:bkk:bang-kapi",
+      "area_code": "BKK-BANGKAPI",
+      "name_th": "บางกะปิ",
+      "level": "DISTRICT",
+      "parent_id": "area:bkk",
+      "source_id": "doc:bma:health-centers",
+      "effective_from": "2026-01-01",
+      "effective_to": null,
+      "verification_status": "VERIFIED"
+    },
+    {
+      "id": "area:bkk:ratchathewi",
+      "area_code": "BKK-RATCHATHEWI",
+      "name_th": "ราชเทวี",
+      "level": "DISTRICT",
+      "parent_id": "area:bkk",
+      "source_id": "doc:bma:health-centers",
+      "effective_from": "2026-01-01",
+      "effective_to": null,
+      "verification_status": "VERIFIED"
+    },
+    {
+      "id": "area:bkk:huai-khwang",
+      "area_code": "BKK-HUAIKHWANG",
+      "name_th": "ห้วยขวาง",
+      "level": "DISTRICT",
+      "parent_id": "area:bkk",
+      "source_id": "doc:bma:health-centers",
+      "effective_from": "2026-01-01",
+      "effective_to": null,
+      "verification_status": "VERIFIED"
+    }
+  ]
+}

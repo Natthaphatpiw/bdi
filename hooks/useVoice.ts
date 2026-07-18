@@ -29,6 +29,25 @@ export function useVoice() {
     audioCtxRef.current = null;
   }, []);
 
+  const stop = useCallback((): Promise<Blob | null> => {
+    return new Promise((resolve) => {
+      const rec = mediaRef.current;
+      if (!rec || rec.state === "inactive") {
+        cleanup();
+        setState("idle");
+        resolve(null);
+        return;
+      }
+      rec.onstop = () => {
+        const blob = new Blob(chunksRef.current, { type: rec.mimeType });
+        cleanup();
+        setState("transcribing");
+        resolve(blob);
+      };
+      rec.stop();
+    });
+  }, [cleanup]);
+
   const start = useCallback(async () => {
     setError(null);
     try {
@@ -72,26 +91,7 @@ export function useVoice() {
       cleanup();
       console.error("[voice]", (e as Error).message);
     }
-  }, [cleanup]);
-
-  const stop = useCallback((): Promise<Blob | null> => {
-    return new Promise((resolve) => {
-      const rec = mediaRef.current;
-      if (!rec || rec.state === "inactive") {
-        cleanup();
-        setState("idle");
-        resolve(null);
-        return;
-      }
-      rec.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: rec.mimeType });
-        cleanup();
-        setState("transcribing");
-        resolve(blob);
-      };
-      rec.stop();
-    });
-  }, [cleanup]);
+  }, [cleanup, stop]);
 
   const cancel = useCallback(() => {
     const rec = mediaRef.current;

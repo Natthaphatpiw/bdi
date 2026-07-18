@@ -1,0 +1,126 @@
+{
+  "schemaVersion": "1.0.0",
+  "generatedAt": "2026-07-18T00:00:00+07:00",
+  "records": [
+    {
+      "id": "facility-service:hc66:dm-assessment",
+      "facility_id": "fac:bma-hc66",
+      "service_id": "svc:dm-assessment",
+      "availability_status": "AVAILABLE_CONDITIONAL",
+      "conditions_th": "โปรดโทรยืนยันวันและช่วงเวลาคลินิกก่อนเดินทาง",
+      "verified_at": "2026-07-18T00:00:00+07:00",
+      "source_id": "doc:bma:diabetes-clinics",
+      "effective_from": "2026-07-18",
+      "effective_to": null,
+      "verification_status": "NEEDS_CONFIRMATION"
+    },
+    {
+      "id": "facility-service:hc66:dm-screening",
+      "facility_id": "fac:bma-hc66",
+      "service_id": "svc:dm-screening",
+      "availability_status": "AVAILABLE_CONDITIONAL",
+      "conditions_th": "ขึ้นกับการประเมินของบุคลากรและตารางบริการ",
+      "verified_at": "2026-07-18T00:00:00+07:00",
+      "source_id": "doc:bma:diabetes-clinics",
+      "effective_from": "2026-07-18",
+      "effective_to": null,
+      "verification_status": "NEEDS_CONFIRMATION"
+    },
+    {
+      "id": "facility-service:hc66:acute",
+      "facility_id": "fac:bma-hc66",
+      "service_id": "svc:general-acute-assessment",
+      "availability_status": "AVAILABLE_CONDITIONAL",
+      "conditions_th": "โปรดโทรยืนยันก่อนเดินทาง",
+      "verified_at": "2026-07-18T00:00:00+07:00",
+      "source_id": "doc:bma:health-centers",
+      "effective_from": "2026-01-01",
+      "effective_to": null,
+      "verification_status": "NEEDS_CONFIRMATION"
+    },
+    {
+      "id": "facility-service:hc66:dental",
+      "facility_id": "fac:bma-hc66",
+      "service_id": "svc:dental-basic",
+      "availability_status": "UNKNOWN",
+      "conditions_th": "ยังต้องโทรยืนยันว่ามีบริการทันตกรรมที่ต้องการและมีคิวในวันที่ไป",
+      "verified_at": "2026-07-18T00:00:00+07:00",
+      "source_id": "doc:bma:health-centers",
+      "effective_from": "2026-01-01",
+      "effective_to": null,
+      "verification_status": "NEEDS_CONFIRMATION"
+    },
+    {
+      "id": "facility-service:hc35:acute",
+      "facility_id": "fac:bma-hc35",
+      "service_id": "svc:general-acute-assessment",
+      "availability_status": "AVAILABLE_CONDITIONAL",
+      "conditions_th": "โปรดโทรยืนยันก่อนเดินทาง",
+      "verified_at": "2026-07-18T00:00:00+07:00",
+      "source_id": "doc:bma:health-centers",
+      "effective_from": "2026-01-01",
+      "effective_to": null,
+      "verification_status": "NEEDS_CONFIRMATION"
+    },
+    {
+      "id": "facility-service:rajavithi:dm-assessment",
+      "facility_id": "fac:rajavithi",
+      "service_id": "svc:dm-assessment",
+      "availability_status": "AVAILABLE_CONDITIONAL",
+      "conditions_th": "ต้องตรวจสอบคลินิก วันนัด และขั้นตอนรับบริการ",
+      "verified_at": "2026-07-18T00:00:00+07:00",
+      "source_id": "doc:cgd:medical",
+      "effective_from": "2026-01-01",
+      "effective_to": null,
+      "verification_status": "NEEDS_CONFIRMATION"
+    },
+    {
+      "id": "facility-service:nhso1330:right-check",
+      "facility_id": "fac:nhso-1330",
+      "service_id": "svc:ucs-right-verification",
+      "availability_status": "AVAILABLE",
+      "conditions_th": "เป็นการตรวจสอบสิทธิทางโทรศัพท์ ไม่ใช่บริการรักษา",
+      "verified_at": "2026-07-18T00:00:00+07:00",
+      "source_id": "doc:nhso:1330",
+      "effective_from": "2026-01-01",
+      "effective_to": null,
+      "verification_status": "VERIFIED"
+    },
+    {
+      "id": "facility-service:sso1506:right-check",
+      "facility_id": "fac:sso-1506",
+      "service_id": "svc:sss-right-verification",
+      "availability_status": "AVAILABLE",
+      "conditions_th": "เป็นการตรวจสอบสิทธิทางโทรศัพท์ ไม่ใช่บริการทันตกรรม",
+      "verified_at": "2026-07-18T00:00:00+07:00",
+      "source_id": "doc:sso:medical",
+      "effective_from": "2026-01-01",
+      "effective_to": null,
+      "verification_status": "VERIFIED"
+    },
+    {
+      "id": "facility-service:sso-eservice:right-check",
+      "facility_id": "fac:sso-eservice",
+      "service_id": "svc:sss-right-verification",
+      "availability_status": "AVAILABLE",
+      "conditions_th": "เป็นการตรวจสอบสิทธิออนไลน์ ไม่ใช่บริการทันตกรรม",
+      "verified_at": "2026-07-18T00:00:00+07:00",
+      "source_id": "doc:sso:medical",
+      "effective_from": "2026-01-01",
+      "effective_to": null,
+      "verification_status": "VERIFIED"
+    },
+    {
+      "id": "facility-service:niems1669:emergency",
+      "facility_id": "fac:niems-1669",
+      "service_id": "svc:emergency-response",
+      "availability_status": "AVAILABLE",
+      "conditions_th": "สำหรับอาการฉุกเฉิน โทร 1669 ทันที",
+      "verified_at": "2026-07-18T00:00:00+07:00",
+      "source_id": "doc:niems:1669",
+      "effective_from": "2026-01-01",
+      "effective_to": null,
+      "verification_status": "VERIFIED"
+    }
+  ]
+}

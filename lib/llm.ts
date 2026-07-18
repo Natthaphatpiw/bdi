@@ -1,11 +1,11 @@
-// Primary text-LLM layer — Claude (claude-sonnet-5, official SDK) with Gemini
-// as automatic fallback. STT and embeddings stay on Gemini (Claude doesn't do
-// audio transcription or embeddings).
+// Legacy text-LLM layer — Claude (claude-sonnet-5, official SDK). Gemini text
+// fallback is disabled by default and requires LEGACY_ENABLE_GEMINI_TEXT_FALLBACK=true.
+// STT and embeddings remain optional Gemini helpers outside the MVP reasoning path.
 //
 // Sonnet 5 API notes (per current Claude API):
 //  - non-default temperature/top_p/top_k are REJECTED (400) → never send them
-//  - adaptive thinking runs by default when `thinking` is omitted → we disable
-//    it explicitly for these short extraction/synthesis calls (latency + budget)
+//  - thinking behavior is model-managed; omit legacy/manual thinking controls so
+//    this compatibility layer stays valid as the provider evolves
 import Anthropic from "@anthropic-ai/sdk";
 import { env, featureFlags } from "./env";
 import { geminiText, geminiJson, safeParseJson } from "./gemini";
@@ -34,11 +34,10 @@ async function claudeText(prompt: string, opts: LlmOpts): Promise<string | null>
     const res = await client().messages.create({
       model: env.claudeModel,
       max_tokens: opts.maxOutputTokens ?? 1024,
-      thinking: { type: "disabled" },
       ...(opts.system ? { system: opts.system } : {}),
       messages: [{ role: "user", content: prompt }],
     });
-    if (res.stop_reason === "refusal") return null; // let Gemini try
+    if (res.stop_reason === "refusal") return null;
     const text = res.content
       .filter((b): b is Anthropic.TextBlock => b.type === "text")
       .map((b) => b.text)
@@ -54,13 +53,13 @@ async function claudeText(prompt: string, opts: LlmOpts): Promise<string | null>
   }
 }
 
-/** Text generation: Claude first, Gemini fallback. Returns provider used. */
+/** Legacy text generation: Claude first; optional Gemini only behind its flag. */
 export async function llmTextEx(prompt: string, opts: LlmOpts = {}): Promise<LlmResult | null> {
   if (featureFlags.hasClaude()) {
     const text = await claudeText(prompt, opts);
     if (text) return { text, provider: "claude" };
   }
-  if (featureFlags.hasGemini()) {
+  if (env.legacyGeminiTextFallback && featureFlags.hasGemini()) {
     try {
       const text = await geminiText(prompt, {
         system: opts.system,
@@ -80,15 +79,18 @@ export async function llmText(prompt: string, opts: LlmOpts = {}): Promise<strin
   return r?.text ?? "";
 }
 
-/** JSON generation with defensive parsing: Claude first, Gemini fallback. */
+/** Legacy JSON generation with defensive parsing and an explicitly gated fallback. */
 export async function llmJson<T>(prompt: string, fallback: T, opts: LlmOpts = {}): Promise<T> {
   if (featureFlags.hasClaude()) {
     const text = await claudeText(prompt, opts);
     if (text) {
       const parsed = safeParseJson<T | null>(text, null);
       if (parsed !== null) return parsed;
-      console.error("[llm] claude JSON parse failed, falling back to gemini");
+      console.error("[llm] claude JSON parse failed");
     }
   }
-  return geminiJson<T>(prompt, fallback, { maxOutputTokens: opts.maxOutputTokens });
+  if (env.legacyGeminiTextFallback && featureFlags.hasGemini()) {
+    return geminiJson<T>(prompt, fallback, { maxOutputTokens: opts.maxOutputTokens });
+  }
+  return fallback;
 }

@@ -23,6 +23,7 @@ export const ERR = {
     fail(401, "unauthorized", "กรุณาเข้าสู่ระบบก่อนใช้งาน", false),
   badRequest: (msg = "คำขอไม่ถูกต้อง") => fail(400, "bad_request", msg, false),
   notFound: (msg = "ไม่พบข้อมูล") => fail(404, "not_found", msg, false),
+  tooMany: () => fail(429, "rate_limited", "มีคำขอมากเกินไป กรุณารอสักครู่แล้วลองใหม่", true),
   server: (msg = "ระบบมีปัญหาชั่วคราว ลองใหม่อีกครั้ง") =>
     fail(500, "server_error", msg, true),
 };

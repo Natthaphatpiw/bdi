@@ -1,0 +1,45 @@
+{
+  "schemaVersion": "1.0.0",
+  "generatedAt": "2026-07-18T00:00:00+07:00",
+  "records": [
+    {
+      "id": "cond:E11",
+      "icd10": "E11",
+      "name_th": "ภาวะที่อาจเกี่ยวข้องกับเบาหวานชนิดที่ 2",
+      "category": "METABOLIC",
+      "safety_note_th": "อาการเพลีย ปัสสาวะบ่อย หรือกระหายน้ำต้องได้รับการประเมินและตรวจระดับน้ำตาล ไม่ใช้ข้อมูลนี้ยืนยันการวินิจฉัย",
+      "recommended_service_ids": ["svc:dm-assessment", "svc:dm-screening"],
+      "active": true,
+      "source_id": "doc:thai-dm-cpg:2566",
+      "effective_from": "2023-08-01",
+      "effective_to": null,
+      "verification_status": "VERIFIED"
+    },
+    {
+      "id": "cond:acute-unspecified",
+      "icd10": null,
+      "name_th": "อาการเจ็บป่วยเฉียบพลันที่ยังไม่ทราบสาเหตุ",
+      "category": "GENERAL",
+      "safety_note_th": "ต้องประเมินอาการและสัญญาณอันตรายก่อนเลือกบริการ",
+      "recommended_service_ids": ["svc:general-acute-assessment", "svc:ucs-right-verification"],
+      "active": true,
+      "source_id": "doc:nhso:ucs-overview",
+      "effective_from": "2026-01-01",
+      "effective_to": null,
+      "verification_status": "VERIFIED"
+    },
+    {
+      "id": "cond:K02",
+      "icd10": "K02",
+      "name_th": "ภาวะที่อาจเกี่ยวข้องกับฟันผุหรือปัญหาทันตกรรมทั่วไป",
+      "category": "DENTAL",
+      "safety_note_th": "อาการบวมมาก ไข้สูง หายใจหรือกลืนลำบากควรได้รับการประเมินเร่งด่วน",
+      "recommended_service_ids": ["svc:dental-basic", "svc:sss-right-verification"],
+      "active": true,
+      "source_id": "doc:sso:dental-2569",
+      "effective_from": "2026-01-01",
+      "effective_to": "2026-12-31",
+      "verification_status": "NEEDS_CONFIRMATION"
+    }
+  ]
+}

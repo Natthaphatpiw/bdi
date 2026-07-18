@@ -148,7 +148,7 @@ export async function runPrescreen(input: PrescreenInput): Promise<PrescreenResu
   }
 
   const parsed = parsePrediction(raw);
-  let disease = parsed.disease;
+  const disease = parsed.disease;
   let department = parsed.department;
   let severity = parsed.severity;
 

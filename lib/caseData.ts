@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Card, CaseSnapshot, Understood } from "./types";
+import { publicUnderstood } from "./sanitize";
 
 function parseCards(content?: string | null): Card[] {
   const raw = (content ?? "").trim();
@@ -63,16 +64,14 @@ export async function loadCaseSnapshot(
     channel: session.channel,
     started_at: session.started_at,
     preview: (firstUser?.content as string | undefined)?.slice(0, 160),
-    understood: ((state?.slots as Understood | null) ?? {}) as Understood,
+    understood: publicUnderstood(((state?.slots as Understood | null) ?? {}) as Understood),
     cards,
     audit: audit
       ? {
-          queries_run: (audit.queries_run as string[] | null) ?? undefined,
           rule_traces: (audit.rule_traces as unknown[] | null) ?? undefined,
           citations:
             (audit.citations as { title: string; url: string; publisher: string }[] | null) ??
             undefined,
-          prescreen_result: audit.prescreen_result,
         }
       : undefined,
   };

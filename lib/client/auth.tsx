@@ -50,10 +50,25 @@ export function AuthProvider({ surface, children }: { surface: Surface; children
 
   useEffect(() => {
     let cancelled = false;
-    const sb = supabaseBrowser();
 
     async function boot() {
       try {
+        // The explicit booth route is intentionally auth-independent and keeps
+        // no durable PII. This lets a judge open the LIFF-sized demo even when
+        // LINE or Supabase is unavailable.
+        if (pathname === "/liff/demo") {
+          setState((current) => ({
+            ...current,
+            ready: true,
+            error: null,
+            userId: "demo-session",
+            displayName: null,
+            pictureUrl: null,
+            isInLineClient: false,
+          }));
+          return;
+        }
+        const sb = supabaseBrowser();
         if (surface === "line") {
           const liffId = liffIdForPath(pathname);
           const session = await initLiff(liffId);

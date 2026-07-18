@@ -111,7 +111,7 @@ export async function servicesForScheme(scheme: Scheme): Promise<CoveredService[
      OPTIONAL MATCH (s)-[:PROVIDED_AT]->(f:Facility)-[:ACCEPTS]->(r)
      RETURN coalesce(s.service_id, elementId(s)) AS service_id,
             coalesce(s.name, s.service_name_th) AS name,
-            s.service_type AS type, coalesce(cov.copay, s.copay, 'ไม่มีค่าใช้จ่าย') AS copay,
+            s.service_type AS type, coalesce(cov.copay, s.copay, 'ยังไม่มีข้อมูลค่าใช้จ่ายที่ยืนยันได้') AS copay,
             toInteger(s.interval_months) AS interval,
             toInteger(s.eligible_age_min) AS age_min,
             collect(DISTINCT coalesce(f.name, f.name_th))[..3] AS facilities
@@ -123,7 +123,7 @@ export async function servicesForScheme(scheme: Scheme): Promise<CoveredService[
       service_id: r.service_id,
       name: r.name,
       type: r.type,
-      copay: r.copay || "ไม่มีค่าใช้จ่าย",
+      copay: r.copay || "ยังไม่มีข้อมูลค่าใช้จ่ายที่ยืนยันได้",
       interval: intervalText(r.interval ?? undefined),
       age_min: r.age_min ?? undefined,
       facilities: (r.facilities || []).filter(Boolean),
@@ -136,7 +136,7 @@ export async function servicesForScheme(scheme: Scheme): Promise<CoveredService[
       service_id: s.service_id,
       name: s.name,
       type: s.type,
-      copay: s.copay || "ไม่มีค่าใช้จ่าย",
+      copay: s.copay || "ยังไม่มีข้อมูลค่าใช้จ่ายที่ยืนยันได้",
       interval: intervalText(s.interval_months),
       age_min: s.age_min ? parseInt(s.age_min, 10) || undefined : undefined,
     }));
@@ -170,7 +170,7 @@ export async function recommendedServices(params: {
      RETURN DISTINCT coalesce(s.service_id, elementId(s)) AS service_id,
             coalesce(s.name, s.service_name_th) AS name,
             s.service_type AS type,
-            coalesce(cov.copay, s.copay, 'ไม่มีค่าใช้จ่าย') AS copay,
+            coalesce(cov.copay, s.copay, 'ยังไม่มีข้อมูลค่าใช้จ่ายที่ยืนยันได้') AS copay,
             toInteger(s.interval_months) AS interval
      LIMIT 6`,
     { conditionId, disease: diseaseNameEn, scheme, age: age ?? 999 }
@@ -179,7 +179,7 @@ export async function recommendedServices(params: {
     service_id: r.service_id,
     name: r.name,
     type: r.type,
-    copay: r.copay || "ไม่มีค่าใช้จ่าย",
+    copay: r.copay || "ยังไม่มีข้อมูลค่าใช้จ่ายที่ยืนยันได้",
     interval: intervalText(r.interval ?? undefined),
   }));
 }

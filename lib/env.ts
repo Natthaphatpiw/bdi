@@ -15,25 +15,41 @@ export const env = {
   claudeApiKey: get("CLAUDE_API_KEY") || get("ANTHROPIC_API_KEY"),
   claudeModel: get("CLAUDE_MODEL", "claude-sonnet-5"),
 
-  // Gemini (STT + embeddings; text fallback when Claude unavailable)
+  // Optional legacy media helpers. Gemini is not a reasoning fallback unless
+  // the explicit legacy flag is enabled outside the MVP killer journey.
   geminiApiKey: get("GEMINI_API_KEY"),
   geminiModel: get("GEMINI_MODEL", "gemini-3.5-flash"),
   embedModel: get("EMBED_MODEL", "gemini-embedding-001"),
   embedDim: parseInt(get("EMBED_DIM", "768"), 10),
 
-  // RunPod (ThaiLLM-27B-Prescreen)
+  // Future/legacy ThaiLLM adapter configuration. Never active unless
+  // MODEL_PROVIDER=thaillm is selected explicitly.
   runpodEndpointId: get("RUNPOD_ENDPOINT_ID"),
   runpodApiKey: get("RUNPOD_API_KEY"),
   runpodAdapter: get("RUNPOD_PRESCREEN_ADAPTER", "prescreen"),
-  // Max wait for the 27B before falling back to mock+rails. Must stay well under
-  // the serverless function limit so /api/turn never 504s on a RunPod cold start.
+  // Timeout retained for the legacy /api/turn compatibility path only.
   runpodTimeoutMs: parseInt(get("RUNPOD_TIMEOUT_MS", "20000"), 10),
 
-  // Neo4j
+  // Future Neo4j-compatible adapter configuration. The default runtime does
+  // not load a Neo4j driver or make a Neo4j connection.
   neo4jUri: get("NEO4J_URI"),
   neo4jUser: get("NEO4J_USERNAME", "neo4j"),
   neo4jPassword: get("NEO4J_PASSWORD"),
   neo4jDatabase: get("NEO4J_DATABASE", "neo4j"),
+
+  // Verified Care Route runtime. Future providers are opt-in only: merely
+  // having an old credential in .env must never reactivate them.
+  modelProvider: get("MODEL_PROVIDER", "claude").toLowerCase(),
+  knowledgeProvider: get("KNOWLEDGE_PROVIDER", "supabase").toLowerCase(),
+  enableJsonKnowledgeFallback: get("ENABLE_JSON_KNOWLEDGE_FALLBACK", "true") !== "false",
+  // Booth entry is available out of the box; production operators can disable
+  // it explicitly with DEMO_MODE=false after the event.
+  demoMode: get("DEMO_MODE", "true") === "true",
+  enablePrivateOptions: get("ENABLE_PRIVATE_OPTIONS", "false") === "true",
+  enableFacilityFeedback: get("ENABLE_FACILITY_FEEDBACK", "true") !== "false",
+  enablePassportShare: get("ENABLE_PASSPORT_SHARE", "true") !== "false",
+  adminDebug: get("ADMIN_DEBUG", "false") === "true",
+  legacyGeminiTextFallback: get("LEGACY_ENABLE_GEMINI_TEXT_FALLBACK", "false") === "true",
 
   // LINE
   liffId: get("NEXT_PUBLIC_LIFF_ID"),
@@ -54,8 +70,12 @@ export const featureFlags = {
   hasSupabaseClient: () => !!env.supabaseUrl && !!env.supabaseAnonKey,
   hasClaude: () => !!env.claudeApiKey,
   hasGemini: () => !!env.geminiApiKey,
-  hasLLM: () => !!env.claudeApiKey || !!env.geminiApiKey,
-  hasRunpod: () => !!env.runpodEndpointId && !!env.runpodApiKey,
-  hasNeo4j: () => !!env.neo4jUri && !!env.neo4jPassword,
+  hasLLM: () =>
+    !!env.claudeApiKey || (env.legacyGeminiTextFallback && !!env.geminiApiKey),
+  hasRunpod: () =>
+    env.modelProvider === "thaillm" && !!env.runpodEndpointId && !!env.runpodApiKey,
+  hasNeo4j: () =>
+    env.knowledgeProvider === "neo4j" && !!env.neo4jUri && !!env.neo4jPassword,
   hasLine: () => !!env.lineChannelId && !!env.lineChannelSecret,
+  privateOptionsEnabled: () => env.enablePrivateOptions,
 };

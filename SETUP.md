@@ -1,94 +1,139 @@
-# คู่มือติดตั้ง — รู้สิทธิ์ รู้สุข (Next.js full-stack)
+# คู่มือติดตั้ง — รู้สิทธิ์ รู้สุข MVP
 
-ระบบเดียว เสิร์ฟ **2 client**: **Web App** (`/`) และ **LINE Mini App / LIFF** (`/liff`) โดยใช้ **API ชุดเดียวกัน**
-- 8B router เดิม (ThaiLLM-8B) → ใช้ **Gemini** แทน (เรื่อง cost) · model = `gemini-3.5-flash`
-- 27B prescreen → **RunPod Serverless** (OpenAI-compatible route, adapter `prescreen`)
-- KG = Neo4j Aura · Vector/SQL/Auth/Storage = Supabase · STT/embeddings = Gemini
+ระบบเดียวให้บริการ Web, LINE LIFF และ API ด้วย Next.js App Router การตั้งค่าด้านล่างแยก “booth fallback” ที่รันได้ทันที ออกจาก “connected runtime” ที่เรียก Claude และ Supabase จริง
 
----
+## 1. Prerequisites
 
-## 0) ติดตั้ง dependency
+- Node.js 22.13 ขึ้นไป (`.node-version` ระบุเวอร์ชันที่แนะนำ)
+- npm
+- Supabase project สำหรับ persistent cases/knowledge
+- Claude API key สำหรับ live structured extraction/prescreen
+- LINE Login/LIFF channel เฉพาะเมื่อทดสอบผ่าน LINE จริง
+
+## 2. ติดตั้งและตั้งค่า environment
+
 ```bash
-cd rusit-rusuk
-npm install          # ติดตั้งแล้ว (มี node_modules)
+npm install
+cp .env.example .env.local
 ```
 
-## 1) ตั้งค่า `.env.local`
-ไฟล์ `.env.local` ใส่ค่าจริงให้แล้วเกือบครบ — **เหลือ 1 ค่าที่คุณต้องเติมเอง**:
+ค่าขั้นต่ำสำหรับ booth fallback:
+
+```dotenv
+MODEL_PROVIDER=claude
+KNOWLEDGE_PROVIDER=supabase
+ENABLE_JSON_KNOWLEDGE_FALLBACK=true
+DEMO_MODE=true
+ENABLE_PRIVATE_OPTIONS=false
+ENABLE_FACILITY_FEEDBACK=true
+ENABLE_PASSPORT_SHARE=true
 ```
-NEXT_PUBLIC_SUPABASE_ANON_KEY=   # ← Supabase → Project Settings → API → "anon public"
+
+ถ้าไม่ได้ใส่ Claude/Supabase secrets หน้า `/demo` ยังใช้ precomputed result และ JSON knowledge ได้ หากตั้ง `DEMO_MODE=false` หรือใช้งาน non-demo ต้องตั้ง:
+
+```dotenv
+CLAUDE_API_KEY=
+CLAUDE_MODEL=claude-sonnet-5
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
+SUPABASE_SERVICE_KEY=
 ```
-> ฝั่ง browser ต้องมี anon key เพื่อ sign-in (web = anonymous, line = แลก token จาก LINE) ถ้าไม่ใส่ หน้าเว็บจะขึ้น error ตอนล็อกอิน
 
-ค่าอื่นที่ใส่ให้แล้ว: `SUPABASE_SERVICE_KEY`, `GEMINI_API_KEY`, `RUNPOD_ENDPOINT_ID`, `RUNPOD_API_KEY`, `NEO4J_*`, `NEXT_PUBLIC_LIFF_ID`, `LINE_CHANNEL_ID`, `LINE_CHANNEL_SECRET`
+`SUPABASE_SERVICE_KEY` และ `CLAUDE_API_KEY` เป็น server-only ห้ามใช้ prefix `NEXT_PUBLIC_` และห้าม commit `.env.local`
 
-## 2) Supabase — สร้างฐานข้อมูล (ทำครั้งเดียว)
-1. เปิด **Supabase → SQL Editor** วางและรัน 2 ไฟล์นี้ตามลำดับ:
-   - `supabase/schema.sql` (ตาราง + pgvector + RLS + RPC) — รันซ้ำได้ปลอดภัย
-   - `supabase/storage.sql` (bucket `documents` สำหรับ PDF + policy)
-2. เปิด **Authentication → Sign In / Providers → Anonymous Sign-ins = ON**
-   (เว็บใช้ anonymous login; LINE Mini App ใช้ bridge — ทั้งคู่ต้องเปิด)
-3. (ออปชัน) seed GraphRAG เพื่อให้มี citations เพิ่ม — ใช้สคริปต์ Python เดิมในโฟลเดอร์แม่ `bdi/`:
-   ```bash
-   cd ..                       # กลับไปที่ ~/Downloads/bdi
-   .venv/bin/python app/export_kg_chunks.py     # Neo4j → kg_chunks
-   .venv/bin/python app/seed_fewshots.py        # → kg_fewshots
-   ```
-   > ไม่ทำก็ได้ — ระบบ degrade ได้เอง (ใช้ KG + rule engine เป็นหลัก)
+## 3. Supabase
 
-## 3) Neo4j Aura
-มีข้อมูลโหลดอยู่แล้ว (309 nodes / 587 rels) — ใช้ได้ทันที ไม่ต้องทำอะไร
-ถ้าต้องโหลดใหม่: `cd ..; .venv/bin/python load_to_neo4j.py --reset`
+เปิด SQL Editor แล้วรันไฟล์ต่อไปนี้ตามลำดับ:
 
-## 4) RunPod (ThaiLLM-27B-Prescreen)
-Endpoint รันอยู่แล้ว (`dupmzwus7iv7vq`, adapter `prescreen`) — ใช้ได้ทันที
-> ครั้งแรกอาจ cold start ~10-30 วิ; ถ้า endpoint ล่ม ระบบ fallback เป็น mock + safety rails ยังทำงาน
+1. `supabase/migrations/202607180001_verified_care_route_mvp.sql`
+2. `supabase/seed_mvp.sql`
+3. `supabase/storage.sql` เฉพาะเมื่อใช้ document upload ของ legacy surface
 
-## 5) รัน dev
+Migration รันซ้ำได้ในขอบเขตที่ระบุด้วย `create ... if not exists`/upsert, สร้าง indexes, effective-date views, candidate RPC และ RLS. Seed ใช้ข้อมูล demo เท่านั้นและระบุ verification/source/effective dates ทุก fact ที่นำไปใช้ routing. Rollback notes อยู่ท้าย migration
+
+จากนั้น:
+
+1. เปิด Authentication → Providers → Anonymous Sign-ins ถ้าจะใช้ web account/legacy surface
+2. ตรวจว่า service-role key อยู่เฉพาะ server/Vercel secrets
+3. เรียก `/api/health` และคาดหวังเพียง readiness โดยไม่เปิดเผย provider/config detail
+4. ทดสอบ RLS และการลบเคสใน staging ก่อนรับข้อมูลจริง
+
+รายละเอียด table/policy และคำสั่งตรวจ seed อยู่ใน `docs/SUPABASE_SETUP.md`
+
+## 4. ตรวจ knowledge data
+
+```bash
+npm run validate:knowledge
+```
+
+Validator ต้องผ่านก่อน deploy และจะ fail เมื่อมี duplicate ID, source หาย, effective dates ผิด, orphan relationship, coverage ชี้ service/right ที่ไม่มี, facility links เสีย หรือ eligibility rule ขาด required attributes
+
+## 5. รัน local
+
 ```bash
 npm run dev
 ```
-- Web App: <http://localhost:3000>
-- LIFF: <http://localhost:3000/liff> (ดูข้อ 6 — LIFF ต้องเปิดผ่าน HTTPS จริง)
-- ตรวจสุขภาพระบบ: <http://localhost:3000/api/health>
 
-## 6) LINE LIFF — หลายแอป (1 LIFF ต่อ 1 หน้า) · domain `https://bdi-lac.vercel.app`
-ใช้ **LINE LIFF หลายแอป** ภายใต้ **LINE Login channel** เดียว (Channel ID `2010548037`).
-สร้างแต่ละ LIFF ใน **LINE Developers → channel → LIFF → Add**, ตั้งเหมือนกันทุกตัว:
-**Scopes = `openid` + `profile`**, **Size = `Full`**, ตั้ง **Endpoint URL** ตามตาราง แล้วเอา LIFF ID ไปใส่ใน `.env.local`:
+เปิด:
 
-| หน้า | ตัวแปร .env | Endpoint URL |
-|---|---|---|
-| หน้าแรก | `NEXT_PUBLIC_LIFF_ID_HOME` | `https://bdi-lac.vercel.app/liff` |
-| ปรึกษา/แชต | `NEXT_PUBLIC_LIFF_ID_CHAT` | `https://bdi-lac.vercel.app/liff/chat` |
-| สิทธิ์ | `NEXT_PUBLIC_LIFF_ID_RIGHTS` | `https://bdi-lac.vercel.app/liff/rights` |
-| หาสถานพยาบาล | `NEXT_PUBLIC_LIFF_ID_FACILITIES` | `https://bdi-lac.vercel.app/liff/facilities` |
-| เอกสาร | `NEXT_PUBLIC_LIFF_ID_DOCUMENTS` | `https://bdi-lac.vercel.app/liff/documents` |
-| โปรไฟล์ | `NEXT_PUBLIC_LIFF_ID_PROFILE` | `https://bdi-lac.vercel.app/liff/profile` |
-| ประวัติ | `NEXT_PUBLIC_LIFF_ID_HISTORY` | `https://bdi-lac.vercel.app/liff/history` |
+- Web MVP: <http://localhost:3000/demo>
+- LINE layout preview: <http://localhost:3000/liff/demo>
+- Legacy web: <http://localhost:3000>
+- Health: <http://localhost:3000/api/health>
 
-- ตัวที่เว้นว่าง → fallback ไป `NEXT_PUBLIC_LIFF_ID_HOME` อัตโนมัติ (เริ่มทำ HOME + CHAT ก่อนได้)
-- โค้ดเลือก LIFF ID ตาม path ให้เอง (`lib/client/liffConfig.ts`) — คุณแค่ใส่ ID ให้ตรงช่อง
-- เปิดผ่าน `https://liff.line.me/<LIFF_ID>` หรือผูกกับ Rich menu แต่ละปุ่ม → LIFF ของแต่ละหน้า
-- **ใส่ env เดียวกันนี้บน Vercel ด้วย** (Settings → Environment Variables) แล้ว redeploy
+Internal debug ใช้ `/internal/debug/case/[caseId]` เฉพาะ `NODE_ENV=development` หรือเมื่อ `ADMIN_DEBUG=true` ห้ามเปิด public ใน production
 
-> Auth flow: LIFF `getIDToken()` → `POST /api/auth/line` (verify กับ channel `2010548037`) → Supabase session. ทุก LIFF ใต้ channel เดียวใช้ `LINE_CHANNEL_ID/SECRET` ชุดเดียว
+## 6. LINE LIFF
 
-## 7) Deploy (แนะนำ Vercel)
-1. push โค้ด `rusit-rusuk/` ขึ้น Git แล้ว Import เข้า Vercel
-2. ตั้ง Environment Variables ทั้งหมดจาก `.env.local` (รวม `NEXT_PUBLIC_SUPABASE_ANON_KEY`)
-3. หลัง deploy: ตั้ง LIFF Endpoint URL = `https://<vercel-domain>/liff`
-4. (ถ้าใช้ Supabase Storage จาก region อื่น/โดเมน custom เพิ่มใน `next.config.mjs` images)
+สร้าง LIFF app ใต้ LINE Login channel เดียว ตั้ง scope `openid profile`, size `Full` และ endpoint หลักเป็น:
 
----
+```text
+https://<domain>/liff/demo
+```
 
-## สรุปสิ่งที่ต้องทำเอง (เพราะต้องใช้สิทธิ์/คอนโซลของคุณ)
-| # | สิ่งที่ต้องทำ | ที่ไหน |
-|---|---|---|
-| 1 | ใส่ `NEXT_PUBLIC_SUPABASE_ANON_KEY` | `.env.local` |
-| 2 | รัน `schema.sql` + `storage.sql` | Supabase SQL Editor |
-| 3 | เปิด Anonymous Sign-ins | Supabase Auth settings |
-| 4 | ตั้ง LIFF Endpoint = `/liff`, scopes openid+profile, size Full | LINE Developers |
-| 5 | (ออปชัน) seed kg_chunks/kg_fewshots | `python app/export_kg_chunks.py`, `seed_fewshots.py` |
+ตั้งค่า:
 
-ทุกอย่างนอกเหนือจากนี้ (API, หน้า web, หน้า LIFF, orchestrator, prescreen+rails, rule engine, STT, เอกสาร RAG) โค้ดพร้อมรันแล้ว
+```dotenv
+LINE_CHANNEL_ID=
+LINE_CHANNEL_SECRET=
+NEXT_PUBLIC_LIFF_ID_HOME=
+NEXT_PUBLIC_LIFF_ID=
+```
+
+Route demo ถูกออกแบบให้เปิดได้โดยไม่บังคับ auth เพื่อความพร้อมที่บูท ส่วน personal/legacy routes ยังคงใช้ LIFF ID token → Supabase session
+
+## 7. Verification ก่อน deploy
+
+```bash
+npm run validate:knowledge
+npm run typecheck
+npm run lint
+npm run test:unit
+npm run test:integration
+npm run build
+```
+
+สำหรับ browser test:
+
+```bash
+npx playwright install webkit
+npm run test:e2e
+```
+
+Smoke-test อย่างน้อย: hero case, emergency phrase, unknown scheme, Claude unavailable fallback, Passport create/share/revoke, feedback และ reset
+
+## 8. Deploy บน Vercel
+
+1. Import repository และใช้ Node.js 22
+2. ตั้ง environment variables จาก `.env.example` แยก Preview/Production
+3. รัน Supabase migration/seed ก่อนเปิด traffic
+4. Deploy แล้วทดสอบ `/api/health`, `/demo`, shared Passport noindex/no-store และ LINE endpoint
+5. ตั้ง LIFF endpoint เป็น production HTTPS URL
+
+ไม่ต้องตั้ง Neo4j, RunPod หรือ ThaiLLM สำหรับ MVP นี้ Future adapter variables ใน `.env.example` เป็น documentation เท่านั้น
+
+## 9. Booth degraded-mode check
+
+ก่อนเริ่มบูท ให้ทดลองลบ/ปิด `CLAUDE_API_KEY` ชั่วคราวใน local/preview แล้วรัน hero case A ระบบต้องยังจบ flow ด้วย deterministic result, มี primary/backup/evidence และแสดงคำเตือนให้โทรยืนยัน โดยไม่แสดงชื่อ provider หรือคำว่า fallback ใน UI
+
+ขั้นตอนสาธิตเต็มอยู่ใน `docs/DEMO_RUNBOOK.md`

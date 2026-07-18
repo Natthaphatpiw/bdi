@@ -34,7 +34,7 @@ export function Chip({
       onClick={onClick}
       aria-pressed={interactive ? selected : undefined}
       className={cn(
-        "inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full border border-hairline bg-surface px-3 py-1.5 text-sm font-medium transition-colors",
+        "inline-flex min-h-11 shrink-0 items-center gap-1 whitespace-nowrap rounded-full border border-hairline bg-surface px-3 py-2 text-sm font-medium transition-colors",
         toneClasses[tone],
         selected && "border-brand bg-brand text-white",
         !interactive && "cursor-default",

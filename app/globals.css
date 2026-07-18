@@ -17,6 +17,13 @@ body {
 
 body {
   font-family: var(--font-thai), system-ui, sans-serif;
+  min-width: 320px;
+  overflow-x: hidden;
+}
+
+:focus-visible {
+  outline: 3px solid #0ea5e9;
+  outline-offset: 2px;
 }
 
 /* Large mode (โหมดผู้สูงอายุ) — scale typography ×1.2 */
@@ -57,4 +64,49 @@ body {
 }
 .pb-safe {
   padding-bottom: var(--safe-bottom);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@media print {
+  @page {
+    size: A4;
+    margin: 12mm 12mm 16mm;
+
+    @bottom-center {
+      content: "หน้า " counter(page) " / " counter(pages);
+      color: #475569;
+      font-family: sans-serif;
+      font-size: 9pt;
+    }
+  }
+
+  body {
+    background: white;
+    color: black;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+
+  .passport-print {
+    width: 100%;
+    max-width: none;
+    box-shadow: none !important;
+    border: 0 !important;
+  }
+
+  .passport-section {
+    break-inside: avoid;
+  }
 }

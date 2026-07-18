@@ -4,6 +4,8 @@ import { userClient, adminClient } from "@/lib/supabase/server";
 import { transcribeAudio } from "@/lib/gemini";
 import { runTurnStream, type TurnContext, type TurnResult } from "@/lib/orchestrator";
 import type { Profile, TurnRequest, TurnResponse, Understood } from "@/lib/types";
+import { containsThaiNationalId, publicUnderstood } from "@/lib/sanitize";
+import { allowRequest } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -11,6 +13,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 export async function POST(req: NextRequest) {
+  if (!allowRequest(req, "turn", { limit: 12 })) return ERR.tooMany();
   const auth = await requireUser(req);
   if (auth instanceof Response) return auth;
   const { user, token } = auth;
@@ -24,6 +27,16 @@ export async function POST(req: NextRequest) {
   if (!body.session_id || !body.input) return ERR.badRequest("ต้องมี session_id และ input");
 
   const sb = userClient(token);
+
+  // Resolve ownership before spending provider quota. RLS makes an unowned id
+  // invisible, so this single check prevents arbitrary session IDs from
+  // triggering costly work.
+  const { data: ownedSession } = await sb
+    .from("sessions")
+    .select("id")
+    .eq("id", body.session_id)
+    .maybeSingle();
+  if (!ownedSession) return ERR.notFound("ไม่พบเคสนี้");
 
   // load profile + prior slots
   const [{ data: prof }, { data: state }] = await Promise.all([
@@ -64,6 +77,8 @@ export async function POST(req: NextRequest) {
   }
 
   if (!text.trim()) return ERR.badRequest("ไม่มีข้อความสำหรับประมวลผล");
+  if (text.length > 4_000) return ERR.badRequest("ข้อความยาวเกินไป กรุณาสรุปไม่เกิน 4,000 ตัวอักษร");
+  if (containsThaiNationalId(text)) return ERR.badRequest("กรุณาลบเลขบัตรประชาชน 13 หลักออกก่อนส่ง ระบบไม่รับหรือจัดเก็บข้อมูลส่วนนี้");
 
   const ctx: TurnContext = {
     text,
@@ -90,7 +105,7 @@ export async function POST(req: NextRequest) {
     const payload: TurnResponse = {
       session_id: body.session_id,
       transcript,
-      understood: result.understood,
+      understood: publicUnderstood(result.understood),
       pending_question: result.pending_question,
       quick_replies: result.quick_replies,
       questions: result.questions,
@@ -109,7 +124,7 @@ export async function POST(req: NextRequest) {
       try {
         if (transcript) send("transcript", { text: transcript });
         const result = await runTurnStream(ctx, (type, data) => {
-          if (type === "understood") send("understood", data);
+          if (type === "understood") send("understood", publicUnderstood(data as Understood));
           else if (type === "card") send("card", data);
           else if (type === "questions") send("questions", data);
         });

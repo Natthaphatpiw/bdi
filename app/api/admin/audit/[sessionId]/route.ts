@@ -1,13 +1,13 @@
 import { NextRequest } from "next/server";
-import { ok, ERR, requireUser } from "@/lib/http";
+import { ok, ERR, requireAdmin } from "@/lib/http";
 import { userClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// GET /api/admin/audit/:sessionId → audit trace for a session (RLS: owner only)
+// GET /api/admin/audit/:sessionId → internal audit trace (admin allow-list only)
 export async function GET(req: NextRequest, ctx: { params: Promise<{ sessionId: string }> }) {
-  const auth = await requireUser(req);
+  const auth = await requireAdmin(req);
   if (auth instanceof Response) return auth;
   const { sessionId } = await ctx.params;
 

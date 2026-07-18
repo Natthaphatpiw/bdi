@@ -1,0 +1,138 @@
+{
+  "schemaVersion": "1.0.0",
+  "generatedAt": "2026-07-18T00:00:00+07:00",
+  "records": [
+    {
+      "id": "facility-right:hc66:ucs",
+      "facility_id": "fac:bma-hc66",
+      "right_id": "right:ucs",
+      "acceptance_status": "ACCEPTED",
+      "conditions_th": "ต้องตรวจสอบหน่วยบริการและเงื่อนไขของบริการที่ต้องการก่อนเดินทาง",
+      "verified_at": "2026-07-18T00:00:00+07:00",
+      "source_id": "doc:bma:health-centers",
+      "effective_from": "2026-01-01",
+      "effective_to": null,
+      "verification_status": "NEEDS_CONFIRMATION"
+    },
+    {
+      "id": "facility-right:hc66:csmbs",
+      "facility_id": "fac:bma-hc66",
+      "right_id": "right:csmbs",
+      "acceptance_status": "CONDITIONAL",
+      "conditions_th": "การเบิกจ่ายตรงและรายการบริการต้องให้หน่วยบริการตรวจสอบเป็นรายกรณี",
+      "verified_at": "2026-07-18T00:00:00+07:00",
+      "source_id": "doc:cgd:medical",
+      "effective_from": "2026-01-01",
+      "effective_to": null,
+      "verification_status": "NEEDS_CONFIRMATION"
+    },
+    {
+      "id": "facility-right:hc66:sss",
+      "facility_id": "fac:bma-hc66",
+      "right_id": "right:sss",
+      "acceptance_status": "UNKNOWN",
+      "conditions_th": "ยังไม่มีหลักฐานยืนยันว่าสามารถใช้สิทธิประกันสังคมสำหรับทันตกรรมที่หน่วยบริการนี้ โปรดตรวจสอบกับ 1506 และหน่วยบริการ",
+      "verified_at": "2026-07-18T00:00:00+07:00",
+      "source_id": "doc:sso:dental-2569",
+      "effective_from": "2026-01-01",
+      "effective_to": "2026-12-31",
+      "verification_status": "NEEDS_CONFIRMATION"
+    },
+    {
+      "id": "facility-right:hc35:ucs",
+      "facility_id": "fac:bma-hc35",
+      "right_id": "right:ucs",
+      "acceptance_status": "ACCEPTED",
+      "conditions_th": "ต้องตรวจสอบหน่วยบริการประจำและบริการที่เปิดในวันไป",
+      "verified_at": "2026-07-18T00:00:00+07:00",
+      "source_id": "doc:bma:health-centers",
+      "effective_from": "2026-01-01",
+      "effective_to": null,
+      "verification_status": "NEEDS_CONFIRMATION"
+    },
+    {
+      "id": "facility-right:rajavithi:csmbs",
+      "facility_id": "fac:rajavithi",
+      "right_id": "right:csmbs",
+      "acceptance_status": "ACCEPTED",
+      "conditions_th": "โรงพยาบาลต้องตรวจสอบสิทธิและเงื่อนไขเบิกจ่ายตรงสำหรับรายการจริง",
+      "verified_at": "2026-07-18T00:00:00+07:00",
+      "source_id": "doc:cgd:medical",
+      "effective_from": "2026-01-01",
+      "effective_to": null,
+      "verification_status": "VERIFIED"
+    },
+    {
+      "id": "facility-right:nhso1330:ucs",
+      "facility_id": "fac:nhso-1330",
+      "right_id": "right:ucs",
+      "acceptance_status": "ACCEPTED",
+      "conditions_th": "เป็นช่องทางตรวจสอบและประสานสิทธิ ไม่ใช่สถานพยาบาล",
+      "verified_at": "2026-07-18T00:00:00+07:00",
+      "source_id": "doc:nhso:1330",
+      "effective_from": "2026-01-01",
+      "effective_to": null,
+      "verification_status": "VERIFIED"
+    },
+    {
+      "id": "facility-right:sso1506:sss",
+      "facility_id": "fac:sso-1506",
+      "right_id": "right:sss",
+      "acceptance_status": "ACCEPTED",
+      "conditions_th": "เป็นช่องทางตรวจสอบสิทธิ ไม่ใช่สถานพยาบาล",
+      "verified_at": "2026-07-18T00:00:00+07:00",
+      "source_id": "doc:sso:medical",
+      "effective_from": "2026-01-01",
+      "effective_to": null,
+      "verification_status": "VERIFIED"
+    },
+    {
+      "id": "facility-right:sso-eservice:sss",
+      "facility_id": "fac:sso-eservice",
+      "right_id": "right:sss",
+      "acceptance_status": "ACCEPTED",
+      "conditions_th": "เป็นช่องทางตรวจสอบสิทธิออนไลน์ ไม่ใช่สถานพยาบาล",
+      "verified_at": "2026-07-18T00:00:00+07:00",
+      "source_id": "doc:sso:medical",
+      "effective_from": "2026-01-01",
+      "effective_to": null,
+      "verification_status": "VERIFIED"
+    },
+    {
+      "id": "facility-right:niems1669:ucs",
+      "facility_id": "fac:niems-1669",
+      "right_id": "right:ucs",
+      "acceptance_status": "ACCEPTED",
+      "conditions_th": "ภาวะฉุกเฉินให้โทร 1669 โดยไม่ต้องรอตรวจสิทธิ",
+      "verified_at": "2026-07-18T00:00:00+07:00",
+      "source_id": "doc:niems:1669",
+      "effective_from": "2026-01-01",
+      "effective_to": null,
+      "verification_status": "VERIFIED"
+    },
+    {
+      "id": "facility-right:niems1669:sss",
+      "facility_id": "fac:niems-1669",
+      "right_id": "right:sss",
+      "acceptance_status": "ACCEPTED",
+      "conditions_th": "ภาวะฉุกเฉินให้โทร 1669 โดยไม่ต้องรอตรวจสิทธิ",
+      "verified_at": "2026-07-18T00:00:00+07:00",
+      "source_id": "doc:niems:1669",
+      "effective_from": "2026-01-01",
+      "effective_to": null,
+      "verification_status": "VERIFIED"
+    },
+    {
+      "id": "facility-right:niems1669:csmbs",
+      "facility_id": "fac:niems-1669",
+      "right_id": "right:csmbs",
+      "acceptance_status": "ACCEPTED",
+      "conditions_th": "ภาวะฉุกเฉินให้โทร 1669 โดยไม่ต้องรอตรวจสิทธิ",
+      "verified_at": "2026-07-18T00:00:00+07:00",
+      "source_id": "doc:niems:1669",
+      "effective_from": "2026-01-01",
+      "effective_to": null,
+      "verification_status": "VERIFIED"
+    }
+  ]
+}

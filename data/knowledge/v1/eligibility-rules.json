@@ -1,0 +1,49 @@
+{
+  "schemaVersion": "1.0.0",
+  "generatedAt": "2026-07-18T00:00:00+07:00",
+  "records": [
+    {
+      "id": "rule:older-person-allowance:2026",
+      "benefit_id": "benefit:older-person-allowance",
+      "description_th": "อายุอย่างน้อย 60 ปี มีสัญชาติไทย ลงทะเบียนในพื้นที่ และไม่รับบำนาญหรือรายได้ประจำจากรัฐตามเงื่อนไขที่กำหนด",
+      "logic_json": {
+        "all": [
+          { "attr": "age", "op": ">=", "value": 60 },
+          { "attr": "thai_nationality", "op": "==", "value": true },
+          { "attr": "registered_in_area", "op": "==", "value": true },
+          { "attr": "receives_state_pension", "op": "==", "value": false },
+          { "attr": "receives_regular_state_income", "op": "==", "value": false }
+        ]
+      },
+      "required_attrs": [
+        "age",
+        "thai_nationality",
+        "registered_in_area",
+        "receives_state_pension",
+        "receives_regular_state_income"
+      ],
+      "active": true,
+      "source_id": "doc:moi:older-person-allowance:2566",
+      "effective_from": "2023-08-12",
+      "effective_to": null,
+      "verification_status": "NEEDS_CONFIRMATION"
+    },
+    {
+      "id": "rule:sss-dental:2026",
+      "benefit_id": "benefit:sss-dental",
+      "description_th": "ผู้ใช้ยืนยันสิทธิประกันสังคมและสถานะผู้ประกันตนยังมีผลในวันที่รับบริการ",
+      "logic_json": {
+        "all": [
+          { "attr": "scheme", "op": "==", "value": "SSS" },
+          { "attr": "insured_status", "op": "==", "value": "ACTIVE" }
+        ]
+      },
+      "required_attrs": ["scheme", "insured_status"],
+      "active": true,
+      "source_id": "doc:sso:dental-2569",
+      "effective_from": "2026-01-01",
+      "effective_to": "2026-12-31",
+      "verification_status": "NEEDS_CONFIRMATION"
+    }
+  ]
+}

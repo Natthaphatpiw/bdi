@@ -9,6 +9,30 @@ import { useToast } from "@/store/toast";
 
 type LocalMsg = { role: "user" | "assistant"; content: string };
 
+const QUICK_QUESTIONS = [
+  "ต้องเตรียมเอกสารอะไร",
+  "มีค่าใช้จ่ายไหม",
+  "ถ้าที่แรกปิดทำอย่างไร",
+  "ทำไมแนะนำที่นี่",
+];
+
+function SafeAssistantText({ children }: { children: string }) {
+  const lines = children.split(/\n+/).filter(Boolean);
+  return (
+    <div className="space-y-1">
+      {lines.map((line, index) => {
+        const bullet = /^\s*[-*+]\s+/.test(line);
+        const clean = line
+          .replace(/^\s*[-*+]\s+/, "")
+          .replace(/^\s*#{1,6}\s*/, "")
+          .replace(/\*\*|__|`/g, "")
+          .trim();
+        return <p key={`${index}-${clean}`}>{bullet ? `• ${clean}` : clean}</p>;
+      })}
+    </div>
+  );
+}
+
 export function CaseChatWidget({
   sessionId,
   surface,
@@ -111,7 +135,7 @@ export function CaseChatWidget({
                     : "mr-auto border border-hairline bg-surface text-ink"
                 )}
               >
-                {m.content}
+                {m.role === "assistant" ? <SafeAssistantText>{m.content}</SafeAssistantText> : m.content}
               </div>
             ))}
             {sending && (
@@ -122,8 +146,21 @@ export function CaseChatWidget({
           </div>
 
           <div className="border-t border-hairline bg-surface p-2">
+            <div className="mb-2 flex gap-2 overflow-x-auto pb-1 no-scrollbar" aria-label="คำถามแนะนำ">
+              {QUICK_QUESTIONS.map((question) => (
+                <button
+                  key={question}
+                  type="button"
+                  onClick={() => setInput(question)}
+                  className="min-h-11 shrink-0 rounded-full border border-hairline bg-canvas px-3 text-sm text-ink"
+                >
+                  {question}
+                </button>
+              ))}
+            </div>
             <div className="flex items-end gap-2">
               <textarea
+                aria-label="คำถามต่อจากผลลัพธ์เคสนี้"
                 rows={1}
                 value={input}
                 onChange={(e) => setInput(e.target.value)}

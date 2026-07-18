@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { ok, ERR, requireUser } from "@/lib/http";
 import { userClient } from "@/lib/supabase/server";
 import { buildPassport } from "@/lib/passport";
+import { allowRequest } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -9,6 +10,7 @@ export const maxDuration = 60;
 
 // POST /api/passport { session_id, extra? } → PassportResult (need_info | ready)
 export async function POST(req: NextRequest) {
+  if (!allowRequest(req, "passport", { limit: 8 })) return ERR.tooMany();
   const auth = await requireUser(req);
   if (auth instanceof Response) return auth;
 

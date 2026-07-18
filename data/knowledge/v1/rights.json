@@ -1,0 +1,39 @@
+{
+  "schemaVersion": "1.0.0",
+  "generatedAt": "2026-07-18T00:00:00+07:00",
+  "records": [
+    {
+      "id": "right:ucs",
+      "code": "UCS",
+      "name_th": "สิทธิหลักประกันสุขภาพแห่งชาติ (บัตรทอง)",
+      "description_th": "สิทธิบริการสาธารณสุขตามระบบหลักประกันสุขภาพแห่งชาติ โปรดตรวจสอบหน่วยบริการและเงื่อนไขล่าสุดกับ สปสช.",
+      "active": true,
+      "source_id": "doc:nhso:ucs-overview",
+      "effective_from": "2026-01-01",
+      "effective_to": null,
+      "verification_status": "VERIFIED"
+    },
+    {
+      "id": "right:sss",
+      "code": "SSS",
+      "name_th": "สิทธิประกันสังคม",
+      "description_th": "สิทธิของผู้ประกันตนตามเงื่อนไขการส่งเงินสมทบและสถานพยาบาลตามสิทธิ",
+      "active": true,
+      "source_id": "doc:sso:medical",
+      "effective_from": "2026-01-01",
+      "effective_to": null,
+      "verification_status": "VERIFIED"
+    },
+    {
+      "id": "right:csmbs",
+      "code": "CSMBS",
+      "name_th": "สวัสดิการรักษาพยาบาลข้าราชการ",
+      "description_th": "สวัสดิการรักษาพยาบาลของผู้มีสิทธิและบุคคลในครอบครัวตามหลักเกณฑ์กรมบัญชีกลาง",
+      "active": true,
+      "source_id": "doc:cgd:medical",
+      "effective_from": "2026-01-01",
+      "effective_to": null,
+      "verification_status": "VERIFIED"
+    }
+  ]
+}

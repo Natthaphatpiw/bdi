@@ -173,15 +173,17 @@ function RightsBody({ card }: { card: RightsCard }) {
     >
       <ul className="flex flex-col gap-3">
         {items.map((item, i) => {
-          const free = item.copay === "0" || item.copay === "" || item.copay === "ไม่มีค่าใช้จ่าย";
+          const coveredWithoutListedCopay = item.copay === "0" || item.copay === "ไม่มีค่าใช้จ่าย";
           return (
             <li key={i} className="flex items-start gap-2">
               <Check className="mt-1 h-4 w-4 shrink-0 text-rights" aria-hidden="true" />
               <div className="min-w-0 flex-1">
                 <p className="break-words text-ink">{item.name}</p>
                 <p className="mt-0.5 text-sm text-ink-soft">
-                  <span className={free ? "font-medium text-rights" : "text-ink-soft"}>
-                    {free ? "ฟรี" : item.copay}
+                  <span className={coveredWithoutListedCopay ? "font-medium text-rights" : "text-ink-soft"}>
+                    {coveredWithoutListedCopay
+                      ? "อยู่ภายใต้สิทธิ์สำหรับบริการนี้ ตามเงื่อนไขที่ระบุ"
+                      : item.copay || "ยังไม่มีข้อมูลค่าใช้จ่ายที่ยืนยันได้"}
                   </span>
                   {item.interval ? <span className="text-ink-muted"> · {item.interval}</span> : null}
                 </p>
@@ -314,7 +316,7 @@ function ValueUnlockBody({ card }: { card: ValueUnlockCard }) {
       {free.length > 0 && (
         <div className="mt-3">
           {bothGroups && (
-            <p className="mb-1.5 text-xs font-semibold text-ink-muted">ใช้ฟรีตามสิทธิ์ ไม่ต้องจ่ายเงิน</p>
+            <p className="mb-1.5 text-xs font-semibold text-ink-muted">บริการภายใต้สิทธิ์ตามเงื่อนไขที่ระบุ</p>
           )}
           <ul className="flex flex-col gap-2">
             {free.map((line, i) => (

@@ -9,7 +9,7 @@ import { QuestionPanel } from "@/components/chat/QuestionPanel";
 import { Button } from "@/components/ui/Button";
 import { Chip } from "@/components/ui/Chip";
 import { createSession, turn } from "@/lib/client/api";
-import type { Card, Scheme, TurnQuestion, Understood } from "@/lib/types";
+import type { Scheme, TurnQuestion, Understood } from "@/lib/types";
 import { useToast } from "@/store/toast";
 import { useUi } from "@/store/ui";
 import { useAuth } from "@/lib/client/auth";
@@ -85,8 +85,6 @@ export function HomeScreen({ surface, basePath }: Props) {
   const [area, setArea] = useState("");
   const [questions, setQuestions] = useState<TurnQuestion[]>([]);
   const [questionsKey, setQuestionsKey] = useState(0);
-  const [understood, setUnderstood] = useState<Understood>({});
-  const [cards, setCards] = useState<Card[]>([]);
   const [draft, setDraft] = useState<Record<string, string>>({});
 
   const busy = flow === "submitting";
@@ -94,9 +92,7 @@ export function HomeScreen({ surface, basePath }: Props) {
 
   const canSubmit = text.trim().length >= 8 && !busy;
 
-  function setReviewState(u: Understood, newCards: Card[]) {
-    setUnderstood(u);
-    setCards(newCards);
+  function setReviewState(u: Understood) {
     setDraft({
       patient_role: (u.patient_role as string | undefined) ?? role,
       age: typeof u.age === "number" ? String(u.age) : "",
@@ -124,14 +120,16 @@ export function HomeScreen({ surface, basePath }: Props) {
           ...(area ? { area } : {}),
         },
       });
-      setUnderstood(resp.understood);
-      setCards(resp.cards);
+      if (resp.cards.some((card) => card.type === "safety" && card.level === "emergency")) {
+        router.push(`${basePath}/case/${session_id}/result`);
+        return;
+      }
       if (resp.questions?.length) {
         setQuestions(resp.questions);
         setQuestionsKey((k) => k + 1);
         setFlow("questions");
       } else {
-        setReviewState(resp.understood, resp.cards);
+        setReviewState(resp.understood);
       }
     } catch (e) {
       toast(e instanceof Error ? e.message : "สร้างเคสไม่สำเร็จ", "error");
@@ -144,14 +142,16 @@ export function HomeScreen({ surface, basePath }: Props) {
     setFlow("submitting");
     try {
       const resp = await turn(session, { type: "answers", answers, text: summary });
-      setUnderstood(resp.understood);
-      setCards(resp.cards);
+      if (resp.cards.some((card) => card.type === "safety" && card.level === "emergency")) {
+        router.push(`${basePath}/case/${session}/result`);
+        return;
+      }
       if (resp.questions?.length) {
         setQuestions(resp.questions);
         setQuestionsKey((k) => k + 1);
         setFlow("questions");
       } else {
-        setReviewState(resp.understood, resp.cards);
+        setReviewState(resp.understood);
       }
     } catch (e) {
       toast(e instanceof Error ? e.message : "ส่งคำตอบไม่สำเร็จ", "error");
@@ -179,8 +179,6 @@ export function HomeScreen({ surface, basePath }: Props) {
         .filter(Boolean)
         .join(" · ");
       const resp = await turn(session, { type: "answers", answers, text: summary });
-      setUnderstood(resp.understood);
-      setCards(resp.cards);
       if (resp.questions?.length) {
         setQuestions(resp.questions);
         setQuestionsKey((k) => k + 1);
@@ -213,8 +211,13 @@ export function HomeScreen({ surface, basePath }: Props) {
           รู้สิทธิ์ รู้สุข{displayName ? ` · ${displayName}` : ""}
         </h1>
         <p className="mt-2 text-sm leading-relaxed text-ink-soft">
-          สร้าง Case Passport จากเรื่องเล่าสุขภาพ แล้วแปลงเป็นแผนสิทธิ์ บริการ สถานพยาบาล และหลักฐานที่ทำต่อได้ทันที
+          เล่าอาการครั้งเดียว ได้เส้นทางดูแลที่ทำตามได้
         </p>
+        <Link href={surface === "line" ? "/liff/demo" : "/demo"} className="mt-3 block">
+          <Button variant="outline" fullWidth>
+            ทดลองโหมดสาธิตสำหรับบูท
+          </Button>
+        </Link>
       </header>
 
       {flow === "input" && (
@@ -304,8 +307,8 @@ export function HomeScreen({ surface, basePath }: Props) {
           <div className="flex items-start gap-2">
             <ShieldCheck className="mt-1 h-5 w-5 shrink-0 text-rights" aria-hidden="true" />
             <div>
-              <h2 className="text-lg font-bold text-ink">AI เข้าใจว่า</h2>
-              <p className="mt-1 text-sm text-ink-muted">แตะหรือแก้ข้อมูลให้ตรง ก่อนสร้าง Result Dashboard</p>
+              <h2 className="text-lg font-bold text-ink">เราเข้าใจเคสนี้ว่า</h2>
+              <p className="mt-1 text-sm text-ink-muted">ตรวจและแก้ข้อมูลให้ตรง ก่อนสร้างเส้นทางดูแล</p>
             </div>
           </div>
           <div className="mt-4 grid gap-3 md:grid-cols-2">
@@ -380,7 +383,7 @@ export function HomeScreen({ surface, basePath }: Props) {
             onClick={() => void confirmReview()}
             leftIcon={<ArrowRight className="h-4 w-4" aria-hidden="true" />}
           >
-            ไปที่ Result Dashboard
+            สร้างเส้นทางดูแล
           </Button>
         </section>
       )}

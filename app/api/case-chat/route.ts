@@ -3,6 +3,9 @@ import { ERR, ok, requireUser } from "@/lib/http";
 import { userClient } from "@/lib/supabase/server";
 import { loadCaseSnapshot } from "@/lib/caseData";
 import { llmText } from "@/lib/llm";
+import { allowRequest } from "@/lib/rateLimit";
+import { containsThaiNationalId } from "@/lib/sanitize";
+import { runSafetyPrecheck } from "@/lib/mvp/safety";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -11,6 +14,7 @@ export const maxDuration = 45;
 type ChatMsg = { role: "user" | "assistant"; content: string };
 
 export async function POST(req: NextRequest) {
+  if (!allowRequest(req, "case-follow-up", { limit: 15 })) return ERR.tooMany();
   const auth = await requireUser(req);
   if (auth instanceof Response) return auth;
 
@@ -21,6 +25,16 @@ export async function POST(req: NextRequest) {
     return ERR.badRequest();
   }
   if (!body.session_id || !body.question?.trim()) return ERR.badRequest("ต้องมีเคสและคำถาม");
+  if (body.question.length > 800) return ERR.badRequest("คำถามยาวเกินไป");
+  if (containsThaiNationalId(body.question)) return ERR.badRequest("กรุณาลบเลขบัตรประชาชน 13 หลักออกก่อนส่ง ระบบไม่รับหรือจัดเก็บข้อมูลส่วนนี้");
+
+  const safety = runSafetyPrecheck(body.question);
+  if (safety.emergency) {
+    return ok({
+      text: safety.messageTh ?? "อาการที่เล่ามาอาจต้องได้รับความช่วยเหลือฉุกเฉิน โทร 1669 ทันที",
+      safety: { emergency: true, hotline: safety.hotline ?? "1669" },
+    });
+  }
 
   const snapshot = await loadCaseSnapshot(userClient(auth.token), body.session_id);
   if (!snapshot) return ERR.notFound("ไม่พบเคสนี้");

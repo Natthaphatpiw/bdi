@@ -10,17 +10,15 @@ const notoThai = Noto_Sans_Thai({
 });
 
 export const metadata: Metadata = {
-  title: "รู้สิทธิ์ รู้สุข — ผู้ช่วยสิทธิสุขภาพ AI",
+  title: "รู้สิทธิ์ รู้สุข — เส้นทางดูแลที่ตรวจสอบได้",
   description:
-    "เล่าเรื่องสุขภาพ แล้วได้คำตอบที่ทำต่อได้: ไปไหน อะไรฟรี มีสิทธิ์อะไร ฉุกเฉินโทรใคร — ทุกคำตอบมีที่มา",
+    "เล่าอาการครั้งเดียว ช่วยคัดกรอง ตรวจสิทธิ์ และจับคู่สถานที่ที่เหมาะกับเคสของคุณ",
   icons: { icon: "/icon.svg" },
 };
 
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
   themeColor: "#0E9F6E",
 };
 

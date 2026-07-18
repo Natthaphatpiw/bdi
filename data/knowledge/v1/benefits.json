@@ -1,0 +1,34 @@
+{
+  "schemaVersion": "1.0.0",
+  "generatedAt": "2026-07-18T00:00:00+07:00",
+  "records": [
+    {
+      "id": "benefit:older-person-allowance",
+      "name_th": "เบี้ยยังชีพผู้สูงอายุ",
+      "description_th": "สวัสดิการเงินช่วยเหลือตามคุณสมบัติที่กำหนด ต้องประเมินด้วยกฎและข้อมูลที่ผู้ใช้ยืนยัน",
+      "value_text_th": "จำนวนเงินและคุณสมบัติต้องตรวจสอบตามระเบียบและประกาศที่มีผล",
+      "case_relevance_tags": ["OLDER_PERSON", "SOCIAL_SUPPORT"],
+      "agency_id": "agency:dla",
+      "eligibility_rule_ids": ["rule:older-person-allowance:2026"],
+      "active": true,
+      "source_id": "doc:moi:older-person-allowance:2566",
+      "effective_from": "2023-08-12",
+      "effective_to": null,
+      "verification_status": "NEEDS_CONFIRMATION"
+    },
+    {
+      "id": "benefit:sss-dental",
+      "name_th": "สิทธิประโยชน์ทันตกรรมประกันสังคม",
+      "description_th": "สิทธิทันตกรรมสำหรับผู้ประกันตนที่เข้าเงื่อนไขตามหลักเกณฑ์ปี 2569",
+      "value_text_th": "วงเงินและรายการบริการต้องตรวจสอบกับสำนักงานประกันสังคมหรือสถานพยาบาลก่อนใช้บริการ",
+      "case_relevance_tags": ["DENTAL", "SSS"],
+      "agency_id": "agency:sso",
+      "eligibility_rule_ids": ["rule:sss-dental:2026"],
+      "active": true,
+      "source_id": "doc:sso:dental-2569",
+      "effective_from": "2026-01-01",
+      "effective_to": "2026-12-31",
+      "verification_status": "NEEDS_CONFIRMATION"
+    }
+  ]
+}

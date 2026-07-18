@@ -68,7 +68,7 @@ export const PassportCard = forwardRef<HTMLDivElement, { data: PassportData }>(
           <ShieldPlus className="h-5 w-5" aria-hidden="true" />
           <div className="flex-1">
             <p className="text-[15px] font-bold leading-none">Case Passport</p>
-            <p className="mt-0.5 text-[11px] opacity-90">ใบสรุปเพื่อยื่นสถานพยาบาล · รู้สิทธิ์ รู้สุข</p>
+            <p className="mt-0.5 text-[11px] opacity-90">ข้อมูลสรุปก่อนเข้ารับบริการ · รู้สิทธิ์ รู้สุข</p>
           </div>
           <div className="text-right">
             <p className="inline-flex items-center gap-1 text-[12px] font-semibold">
@@ -115,11 +115,11 @@ export const PassportCard = forwardRef<HTMLDivElement, { data: PassportData }>(
             )}
           </Section>
 
-          {/* detailed AI screening result (27B + rails, from audit) */}
+          {/* user-facing prescreen summary; provider internals are never shown */}
           {data.screening && (
             <Section
               icon={<Stethoscope className="h-4 w-4" aria-hidden="true" />}
-              title="ผลคัดกรองเบื้องต้น (AI)"
+              title="ผลคัดกรองเบื้องต้น"
             >
               <div className="rounded-btn bg-canvas px-3 py-2">
                 <table className="w-full text-[12px]">
@@ -154,9 +154,6 @@ export const PassportCard = forwardRef<HTMLDivElement, { data: PassportData }>(
                     <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" aria-hidden="true" />
                     สัญญาณเสี่ยง: {data.screening.red_flags.join(", ")}
                   </p>
-                )}
-                {data.screening.screened_by && (
-                  <p className="mt-1 text-[10px] text-ink-muted">คัดกรองโดย {data.screening.screened_by}</p>
                 )}
               </div>
             </Section>

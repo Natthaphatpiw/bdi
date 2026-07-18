@@ -33,7 +33,6 @@ import type {
   EvidenceCard,
   PrescreenResult,
   TurnQuestion,
-  ValueUnlockCard,
 } from "./types";
 
 const CURRENT_YEAR = new Date().getFullYear();
@@ -507,6 +506,23 @@ export async function runTurnStream(
   }
   emit("understood", u);
 
+  // A deterministic emergency match terminates the normal routing pipeline.
+  // The previous implementation continued into rights/facility generation,
+  // which could put an ordinary clinic next to the 1669 instruction.
+  if (pre.emergency) {
+    return {
+      understood: u,
+      pending_question: null,
+      cards,
+      audit: {
+        queries_run: ["safety_precheck(emergency)"],
+        rule_traces: [],
+        citations: [],
+        prescreen_result: null,
+      },
+    };
+  }
+
   // (3) GATE — if the screening/rights matching still lacks required info,
   //     ask ALL missing questions at once (clickable options + อื่นๆ) and stop.
   //     EMERGENCY BYPASS: when the pre-check finds red flags we never hold the
@@ -568,6 +584,17 @@ export async function runTurnStream(
     queries_run.push(`prescreen(${prescreen.source})+rails`);
     if (prescreen.escalate_hotline) {
       push(emergencyCardFromHotline(prescreen.safety_note, prescreen.escalate_hotline, prescreen.red_flags));
+      return {
+        understood: u,
+        pending_question: null,
+        cards,
+        audit: {
+          queries_run,
+          rule_traces: [],
+          citations: [],
+          prescreen_result: prescreen,
+        },
+      };
     }
   }
 
@@ -644,7 +671,7 @@ export async function runTurnStream(
             title,
             items: services.slice(0, 6).map((s) => ({
               name: s.name,
-              copay: s.copay || "ไม่มีค่าใช้จ่าย",
+              copay: s.copay || "ยังไม่มีข้อมูลค่าใช้จ่ายที่ยืนยันได้",
               interval: s.interval,
             })),
           });
@@ -719,7 +746,7 @@ export async function runTurnStream(
   // private alternatives + real insurance products. Deterministic from verified
   // JSON, then cited in the evidence drawer. This keeps the product broader than
   // government benefits without asking the LLM to invent offers.
-  if (isSymptomFlow || scheme) {
+  if (featureFlags.privateOptionsEnabled() && (isSymptomFlow || scheme)) {
     const optionsCard = buildOptionsCard(u, scheme);
     push(optionsCard);
     citations.push(...optionCitations(optionsCard));

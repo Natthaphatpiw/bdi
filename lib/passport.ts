@@ -97,7 +97,7 @@ function refCode(): string {
 }
 
 const DISCLAIMER =
-  "เอกสารนี้เป็นข้อมูลสรุปเบื้องต้นที่ผู้ป่วยจัดทำผ่านผู้ช่วย AI ไม่ใช่ใบรับรองแพทย์หรือการวินิจฉัย โปรดให้บุคลากรทางการแพทย์ประเมินซ้ำ";
+  "ข้อมูลนี้เป็นการคัดกรองและนำทางเบื้องต้น ไม่ใช่ใบรับรองแพทย์ ใบส่งตัว หรือการวินิจฉัย โปรดให้บุคลากรทางการแพทย์ประเมินอีกครั้ง";
 
 function passportAttrs(slots: Understood, prof?: Record<string, unknown> | null): Record<string, unknown> {
   const attrs: Record<string, unknown> = { thai_nationality: true };
@@ -335,12 +335,6 @@ export async function buildPassport(
   }
 
   // ---- detailed screening section: the 27B result itself (with rails applied) --
-  const SOURCE_LABEL: Record<string, string> = {
-    runpod: "ThaiLLM-27B-Prescreen (RunPod) + safety rails",
-    claude: "Claude (fallback) + safety rails",
-    gemini: "Gemini (fallback) + safety rails",
-    mock: "ระบบสำรอง + safety rails",
-  };
   const screening = prescreen
     ? {
         condition_th: conditionThaiFor(prescreen.disease) ?? out.passport.condition,
@@ -348,7 +342,6 @@ export async function buildPassport(
         department: deptThai(prescreen.department),
         severity: severityThai(prescreen.severity),
         red_flags: prescreen.red_flags?.length ? prescreen.red_flags : undefined,
-        screened_by: SOURCE_LABEL[prescreen.source] ?? "AI คัดกรองเบื้องต้น",
       }
     : undefined;
   const finalScheme = mapScheme(slots.scheme ?? out.passport?.patient?.scheme ?? prof?.scheme);

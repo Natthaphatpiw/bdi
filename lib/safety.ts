@@ -11,6 +11,8 @@ const EMERGENCY_PATTERNS: { re: RegExp; label: string }[] = [
   { re: /หายใจไม่ออก|หอบเหนื่อยมาก|หายใจลำบาก/, label: "หายใจลำบาก" },
   { re: /เลือดออก(ไม่หยุด|มาก)|ตกเลือด/, label: "เลือดออกมาก" },
   { re: /ชาครึ่งซีก|ตามองไม่เห็นเฉียบพลัน/, label: "อาการทางระบบประสาทเฉียบพลัน" },
+  { re: /สับสนเฉียบพลัน|พูดจาสับสนทันที|จำคนไม่ได้ทันที/, label: "สับสนเฉียบพลัน" },
+  { re: /แพ้รุนแรง|หน้าบวมลิ้นบวม|คอบวม.*หายใจ/, label: "อาการแพ้รุนแรง" },
   { re: /กินยา(เกินขนาด|พิษ)|ฆ่าตัวตาย|ทำร้ายตัวเอง/, label: "ภาวะวิกฤตต้องการความช่วยเหลือด่วน" },
 ];
 
@@ -22,7 +24,9 @@ export interface PreCheck {
 
 export function safetyPreCheck(text: string): PreCheck {
   const matched: string[] = [];
-  for (const p of EMERGENCY_PATTERNS) if (p.re.test(text || "")) matched.push(p.label);
+  for (const p of EMERGENCY_PATTERNS) {
+    if (hasNonNegatedMatch(text || "", p.re)) matched.push(p.label);
+  }
   if (!matched.length) return { emergency: false, matched: [] };
   return {
     emergency: true,
@@ -30,11 +34,23 @@ export function safetyPreCheck(text: string): PreCheck {
     card: {
       type: "safety",
       level: "emergency",
-      title: "อาการนี้อาจเป็นภาวะฉุกเฉิน",
-      body: `ตรวจพบสัญญาณเสี่ยง: ${matched.join(", ")} — ถ้ามีอาการเหล่านี้ ให้โทร 1669 ทันที (สายด่วนการแพทย์ฉุกเฉิน ฟรี 24 ชม.) หรือไปห้องฉุกเฉินที่ใกล้ที่สุด`,
+      title: "อาการที่เล่ามาอาจต้องได้รับความช่วยเหลือฉุกเฉิน",
+      body: `พบสัญญาณเสี่ยง: ${matched.join(", ")} โทร 1669 ทันที และทำตามคำแนะนำของเจ้าหน้าที่`,
       actions: [{ label: "โทร 1669 ทันที", tel: "1669", style: "danger" }],
     },
   };
+}
+
+function hasNonNegatedMatch(text: string, pattern: RegExp): boolean {
+  const matcher = new RegExp(pattern.source, pattern.flags.replace("g", "") + "g");
+  for (const match of text.matchAll(matcher)) {
+    const before = text.slice(Math.max(0, (match.index ?? 0) - 24), match.index ?? 0);
+    if (/(?:ไม่|ไม่มี|ไม่ได้|มิได้|ปฏิเสธ)(?:เคย|มี|รู้สึก|อาการ)?[^.!?\n]{0,12}$/.test(before)) {
+      continue;
+    }
+    return true;
+  }
+  return false;
 }
 
 /** Build an emergency safety card from a red-flag hotline (prescreen rails). */

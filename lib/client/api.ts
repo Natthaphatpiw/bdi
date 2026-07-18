@@ -136,7 +136,7 @@ function parseSSE(block: string): { event: string; data: any } | null {
 }
 
 // ---- voice ------------------------------------------------------------------
-export async function stt(blob: Blob): Promise<{ text: string; model: string }> {
+export async function stt(blob: Blob): Promise<{ text: string }> {
   const form = new FormData();
   form.append("file", blob, "audio.webm");
   const res = await fetch("/api/stt", { method: "POST", headers: await authHeaders(), body: form });

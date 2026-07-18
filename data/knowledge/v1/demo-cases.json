@@ -1,0 +1,115 @@
+{
+  "schemaVersion": "1.0.0",
+  "generatedAt": "2026-07-18T00:00:00+07:00",
+  "records": [
+    {
+      "id": "demo:case:a",
+      "title_th": "ลูกชายถามแทนพ่อ 68 ปี มีอาการที่อาจเกี่ยวข้องกับเบาหวาน",
+      "short_label_th": "พ่อเพลีย ปัสสาวะบ่อย",
+      "narrative_th": "พ่ออายุ 68 ปี ช่วง 5 วันที่ผ่านมาเพลียมาก ปัสสาวะบ่อยและกระหายน้ำบ่อย อยู่ลาดพร้าว ใช้สิทธิข้าราชการ และได้รับบำนาญจากรัฐ อยากรู้ว่าควรไปตรวจที่ไหนและต้องเตรียมอะไร",
+      "prefill": {
+        "patient_relation": "father",
+        "age": 68,
+        "scheme": "CSMBS",
+        "area_code": "BKK-LATPHRAO",
+        "area_name": "ลาดพร้าว",
+        "user_goal_th": "ต้องการทราบว่าควรไปประเมินอาการที่ไหนและต้องเตรียมอะไร",
+        "receives_state_pension": true,
+        "receives_regular_state_income": true
+      },
+      "precomputed_result": {
+        "emergency_detected": false,
+        "urgency": "SOON_1_3_DAYS",
+        "possible_condition_ids": ["cond:E11"],
+        "recommended_service_ids": ["svc:dm-assessment", "svc:dm-screening"],
+        "recommended_department_th": "เวชปฏิบัติทั่วไป/คลินิกโรคเรื้อรัง",
+        "primary_facility_id": "fac:bma-hc66",
+        "backup_facility_id": "fac:rajavithi",
+        "benefit_decisions": [
+          {
+            "benefit_id": "benefit:older-person-allowance",
+            "result": "NOT_ELIGIBLE",
+            "reason_th": "ข้อมูลตัวอย่างระบุว่าได้รับบำนาญและรายได้ประจำจากรัฐ จึงไม่ผ่าน predicate ที่กำหนด ห้ามแสดงจำนวนเงินว่าได้รับสิทธิ"
+          }
+        ],
+        "degraded_notice_th": "เวลาเปิดและการรับสิทธิ์อาจเปลี่ยนแปลง โปรดโทรยืนยันก่อนเดินทาง"
+      },
+      "expected_clarification_keys": ["critical_red_flags"],
+      "active": true,
+      "source_id": "doc:demo:synthetic",
+      "effective_from": "2026-07-18",
+      "effective_to": null,
+      "verification_status": "DEMO_ONLY"
+    },
+    {
+      "id": "demo:case:b",
+      "title_th": "ผู้ใช้บัตรทองต่างจังหวัดป่วยในกรุงเทพฯ",
+      "short_label_th": "บัตรทองต่างจังหวัด อยู่กรุงเทพฯ",
+      "narrative_th": "ใช้สิทธิบัตรทองและหน่วยบริการประจำอยู่ต่างจังหวัด ตอนนี้อยู่บางกะปิ กรุงเทพฯ มีไข้ต่ำและเจ็บคอมา 2 วัน และอยากรู้ว่าควรไปที่ไหนโดยไม่เสียสิทธิ",
+      "prefill": {
+        "patient_relation": "self",
+        "age": 35,
+        "scheme": "UCS",
+        "area_code": "BKK-BANGKAPI",
+        "area_name": "บางกะปิ",
+        "user_goal_th": "ต้องการเส้นทางรับบริการในกรุงเทพฯ โดยตรวจสอบสิทธิบัตรทองก่อน",
+        "registered_area": "OUTSIDE_BANGKOK"
+      },
+      "precomputed_result": {
+        "emergency_detected": false,
+        "urgency": "SOON_1_3_DAYS",
+        "possible_condition_ids": ["cond:acute-unspecified"],
+        "recommended_service_ids": ["svc:general-acute-assessment", "svc:ucs-right-verification"],
+        "recommended_department_th": "เวชปฏิบัติทั่วไป",
+        "primary_facility_id": "fac:bma-hc35",
+        "backup_facility_id": "fac:nhso-1330",
+        "benefit_decisions": [],
+        "degraded_notice_th": "ต้องยืนยันหน่วยบริการและขั้นตอนใช้สิทธิกับ สปสช. 1330 โดยเฉพาะเมื่อสิทธิลงทะเบียนต่างจังหวัด"
+      },
+      "expected_clarification_keys": ["critical_red_flags"],
+      "active": true,
+      "source_id": "doc:demo:synthetic",
+      "effective_from": "2026-07-18",
+      "effective_to": null,
+      "verification_status": "DEMO_ONLY"
+    },
+    {
+      "id": "demo:case:c",
+      "title_th": "พนักงานประกันสังคมต้องการใช้สิทธิทันตกรรม",
+      "short_label_th": "ประกันสังคม ทันตกรรม",
+      "narrative_th": "ฉันเป็นพนักงานบริษัท ใช้สิทธิประกันสังคม สถานะผู้ประกันตนยังใช้งาน ต้องการตรวจฟันและขูดหินปูนในปีนี้ อยู่ห้วยขวาง และอยากทราบเงื่อนไขก่อนนัดหมาย",
+      "prefill": {
+        "patient_relation": "self",
+        "age": 29,
+        "scheme": "SSS",
+        "area_code": "BKK-HUAIKHWANG",
+        "area_name": "ห้วยขวาง",
+        "user_goal_th": "ต้องการตรวจสอบสิทธิและเข้ารับบริการทันตกรรม",
+        "insured_status": "ACTIVE"
+      },
+      "precomputed_result": {
+        "emergency_detected": false,
+        "urgency": "ROUTINE_APPOINTMENT",
+        "possible_condition_ids": ["cond:K02"],
+        "recommended_service_ids": ["svc:dental-basic", "svc:sss-right-verification"],
+        "recommended_department_th": "ทันตกรรม",
+        "primary_facility_id": "fac:sso-1506",
+        "backup_facility_id": "fac:sso-eservice",
+        "benefit_decisions": [
+          {
+            "benefit_id": "benefit:sss-dental",
+            "result": "ELIGIBLE",
+            "reason_th": "ข้อมูลตัวอย่างยืนยัน scheme=SSS และ insured_status=ACTIVE แต่ยังต้องยืนยันวงเงินและสถานพยาบาลตามกฎปี 2569"
+          }
+        ],
+        "degraded_notice_th": "วงเงิน รายการ และสถานพยาบาลที่รับสิทธิอาจเปลี่ยนแปลง โปรดตรวจสอบกับ 1506 ก่อนนัด"
+      },
+      "expected_clarification_keys": [],
+      "active": true,
+      "source_id": "doc:demo:synthetic",
+      "effective_from": "2026-07-18",
+      "effective_to": null,
+      "verification_status": "DEMO_ONLY"
+    }
+  ]
+}

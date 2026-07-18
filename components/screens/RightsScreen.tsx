@@ -29,7 +29,7 @@ const RIGHTS_PROMPT =
 export function RightsScreen({ surface, basePath }: Props) {
   const router = useRouter();
   const toast = useToast();
-  const { sessionId, setSessionId } = useUi();
+  const setSessionId = useUi((state) => state.setSessionId);
 
   const [profile, setProfile] = useState<Profile | null>(null);
   const [profileLoading, setProfileLoading] = useState(true);
