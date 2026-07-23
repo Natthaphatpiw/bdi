@@ -28,11 +28,10 @@
 ## 6. เคสที่ระบบตอบเชิงสิทธิ์ได้แต่ไม่ route สถานที่
 - ต่างจังหวัดไกล, คำถามสิทธิ์เฉพาะทางลึก (เช่น เบิกอุปกรณ์เฉพาะ CSMBS) → ตอบกรอบ + ส่ง 1330/1506 — โดยออกแบบ ไม่ใช่ bug
 
-## 7. สถานะ demo:check ณ 2026-07-24 (ต้องปิดก่อนวันจริง)
-- **ผ่านยืนยันแล้ว:** static 100% · unit 89/89 · adversarial 18/18 (100%) · safety 12/12 (100%) · golden 4/4 (100%)
-- **ค้าง:** matrix/paraphrase รอบยืนยันสุดท้ายหลังแก้ 2 bug (ลำดับ branch `coverage_basis` ที่เคย map "อาชีพอิสระ/ไม่ได้ส่งประกันสังคม" เป็น SSS ผิด + harness ตอบคำถาม demographic ตาม persona) — **ถูกบล็อกเพราะเครดิต Anthropic API ของแอปหมดกลางการทดสอบ** ("credit balance is too low")
-- **วิธีปิด:** เติมเครดิต API แล้วรัน `npm run demo:check` รอบเดียวจบ — เกณฑ์: golden/safety/static 100%, matrix+adversarial ≥95%
-- **หมายเหตุเวลา:** p95 full-turn (non-streaming, dev เครื่องทีม) วัดได้ ~13.2s สูงกว่าเป้า 12s เล็กน้อย — first-byte จริงผ่าน streaming เร็วกว่ามาก วัดมือตาม QA-CHECKLIST ข้อ 5 และพิจารณา prewarm ก่อนคิวพิช
+## 7. สถานะ demo:check ณ 2026-07-24 — ✅ ผ่านครบ
+- **ผลรอบยืนยันสุดท้าย (84 fixtures):** static 100% · unit 100% · golden 4/4 · adversarial 18/18 · matrix 40/40 · paraphrase 10/10 · safety 12/12
+- ระหว่างวนเทสพบและแก้ bug production จริง 3 ตัว: (1) `coverage_basis` map "อาชีพอิสระ/ไม่ได้ส่งประกันสังคม" เป็น SSS ผิดเพราะ substring (2) prescreen `detectRedFlags` over-triage จาก token เดี่ยว ("กราม"→หัวใจขาดเลือด, "ปวดท้อง"→DKA, "มีไข้"→ติดเชื้อในข้อ) — แก้เป็น strong-phrase/2-token rule พร้อม unit test กัน regression (3) MvpStore expiry ใช้นาฬิกาจริงชน test ที่ปักเวลาอดีต
+- **หมายเหตุเวลา:** p95 full-turn (non-streaming, dev เครื่องทีม) ~18.6s — ตัวเลขนี้รวม LLM หลายชั้นแบบไม่ streaming; ประสบการณ์จริงผู้ใช้เห็น first-byte ผ่าน streaming เร็วกว่ามาก (<3s เป้า) วัดมือตาม QA-CHECKLIST ข้อ 5 และควร prewarm ก่อนคิวพิช
 
 ## 8. Booth demo corner
 - `/demo`, `/liff/demo` เป็นเครื่องมือบูทที่จงใจคงไว้แบบไม่มีลิงก์จาก UI หลัก (auth bypass เฉพาะ path นั้น) — ไม่กระทบผู้ใช้จริง และ static sweep ยกเว้นโฟลเดอร์นี้อย่างประกาศชัด

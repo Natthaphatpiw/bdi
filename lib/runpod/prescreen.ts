@@ -98,7 +98,33 @@ function mockPredict(symptomsText: string): string {
 }
 
 // ---- red-flag detection (deterministic) ------------------------------------
-function detectRedFlags(symptomsText: string, symptomIds: string[] = []): RedFlag[] {
+// token เดี่ยวที่ "แรงพอ" ให้ยิง red flag ได้ด้วยตัวเอง — ต้องเป็นวลีฉุกเฉิน
+// เฉพาะเจาะจง ไม่ใช่คำอาการทั่วไปที่โผล่ในเรื่องเล่าธรรมดา
+const STRONG_TOKENS = [
+  "หมดสติ", "ไม่รู้สึกตัว", "เรียกไม่ตื่น", "ชัก",
+  "แน่นหน้าอก", "เจ็บหน้าอก", "กลางอก", "จุกอก", "จุกลิ้นปี่", "ร้าวไปแขนซ้าย",
+  "ชาครึ่งซีก", "ปากเบี้ยว", "หน้าเบี้ยว", "พูดไม่ชัด", "แขนขาอ่อนแรง",
+  "อาเจียนเป็นเลือด", "อาเจียนเลือด", "ถ่ายดำ", "ถ่ายมูกเลือด", "เลือดออกไม่หยุด",
+  "หายใจลำบาก", "หายใจไม่ทัน", "หอบจนพูดไม่เป็นประโยค", "ปากเขียว", "ตัวเขียว",
+  "นอนราบไม่ได้", "ฉี่ไม่ออก", "ไม่ปัสสาวะ",
+  "อยากตาย", "คิดสั้น", "ทำร้ายตัวเอง",
+  "มือเท้าเย็น", "ลมหายใจมีกลิ่นผลไม้", "หายใจหอบลึก",
+];
+
+// คำอาการทั่วไปที่ "ห้าม" นับเป็นหลักฐาน red flag ตามลำพัง (กัน false positive
+// อย่าง "ปวดฟันกราม"→'กราม' ของหัวใจขาดเลือด, "ปวดท้อง"→DKA, "มีไข้"→ติดเชื้อในข้อ)
+const GENERIC_TOKENS = new Set([
+  "กราม", "ปวดท้อง", "มีไข้", "ไข้", "แน่น", "จุก", "เหนื่อย", "ซึม", "สับสน",
+  "หน้ามืด", "ใจสั่น", "เหงื่อแตก", "อ่อนเพลียมาก", "น้ำตาลตก", "บวม", "แดง",
+  "ร้อน", "เวียน", "ปวดหัว", "เจ็บ", "หอบ", "ไอ", "อาเจียน", "คลื่นไส้",
+]);
+
+/**
+ * Deterministic red-flag match: token เดี่ยวยิงได้เฉพาะวลีเฉพาะเจาะจง
+ * (STRONG_TOKENS); token ทั่วไปต้องเจอ ≥2 token ต่างกันของ flag เดียวกัน
+ * จึงนับเป็นสัญญาณ — exported เพื่อ unit test negative cases โดยตรง
+ */
+export function detectRedFlags(symptomsText: string, symptomIds: string[] = []): RedFlag[] {
   const sids = new Set(symptomIds);
   const text = symptomsText || "";
   const hits: RedFlag[] = [];
@@ -107,8 +133,12 @@ function detectRedFlags(symptomsText: string, symptomIds: string[] = []): RedFla
       hits.push(rf);
       continue;
     }
-    const tokens = (rf.syn + ", " + rf.name).split(/[,\s/]+/);
-    if (tokens.some((tok) => tok.length >= 4 && text.includes(tok))) hits.push(rf);
+    const tokens = [...new Set((rf.syn + ", " + rf.name).split(/[,\s/()]+/))].filter(
+      (tok) => tok.length >= 4 && text.includes(tok)
+    );
+    const strongHit = tokens.some((tok) => STRONG_TOKENS.some((s) => tok.includes(s) || s.includes(tok)));
+    const weightyHits = tokens.filter((tok) => !GENERIC_TOKENS.has(tok));
+    if (strongHit || weightyHits.length >= 2) hits.push(rf);
   }
   return hits;
 }

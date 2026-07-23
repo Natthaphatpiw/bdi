@@ -7,7 +7,7 @@ import { llmJson, llmText } from "./llm";
 import { featureFlags } from "./env";
 import { safetyPreCheck, emergencyCardFromHotline } from "./safety";
 import { detectBoundary, isPredominantlyEnglish, EN_NOTICE, OUT_OF_AREA_COPY } from "./boundary";
-import { isFarProvince, isChildCase, MAX_QUESTIONS_PER_PANEL, MAX_CLINICAL_QUESTIONS } from "@/demo/scope";
+import { isFarProvince, isChildCase, BKK_DISTRICTS, MAX_QUESTIONS_PER_PANEL, MAX_CLINICAL_QUESTIONS } from "@/demo/scope";
 import { runPrescreen } from "./runpod/prescreen";
 import type { PatientCase } from "./runpod/prompt";
 import {
@@ -432,6 +432,15 @@ async function extractUnderstanding(
   // keep prior symptoms ∪ new
   const sym = [...new Set([...(base.symptoms ?? []), ...(extracted.symptoms ?? [])])].filter(Boolean);
   if (sym.length) merged.symptoms = sym;
+  // Deterministic backstop: NLU พลาดพื้นที่บ้างเป็นครั้งคราว — ชื่อเขต กทม.
+  // ที่ปรากฏตรง ๆ ในข้อความต้องไม่หลุด (state owns the truth) โดยไม่ทับค่า
+  // ที่รู้แล้ว และไม่ทับจังหวัดที่สิทธิ์ลงทะเบียน
+  if (!merged.area) {
+    const district = BKK_DISTRICTS.find(
+      (d) => ctx.text.includes(d) && merged.scheme_registered_province !== d
+    );
+    if (district) merged.area = district;
+  }
   if (!merged.intent) merged.intent = inferIntent(ctx.text, merged);
   return { u: merged, freshSymptoms };
 }
