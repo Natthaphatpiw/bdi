@@ -1,0 +1,184 @@
+[
+  {
+    "id": "golden-a-nut-mother",
+    "category": "golden",
+    "turns": [
+      {
+        "user": "แม่ผมอายุ 62 เป็นเบาหวาน สิทธิบัตรทองอยู่ขอนแก่น มาอยู่บางนากับผม ช่วงนี้เพลีย ตาพร่ามัว"
+      },
+      {
+        "answers": {
+          "pension": "ไม่ได้รับ"
+        }
+      },
+      {
+        "answers": {
+          "pension": "ไม่ได้รับ"
+        }
+      }
+    ],
+    "expect": {
+      "finalRoute": "cards",
+      "cardTypesInclude": [
+        "care",
+        "rights",
+        "facility",
+        "next_steps",
+        "evidence"
+      ],
+      "slotsEqual": {
+        "age": 62,
+        "scheme": "UCS",
+        "area": "บางนา",
+        "condition_hint": "เบาหวาน"
+      },
+      "citationsRequired": true,
+      "maxQuestions": 4,
+      "mustMatch": [
+        "30 บาทรักษาทุกที่"
+      ],
+      "mustNotMatch": [
+        "ทันตกรรม[^\"]{0,12}900",
+        "โหมดสาธิต",
+        "วินิจฉัยว่า(คุณ|ผู้ป่วย)เป็น"
+      ]
+    },
+    "note": "เคสเวที A — นัทเล่าแทนแม่ ประชากรแฝงสิทธิ์ขอนแก่นอยู่บางนา"
+  },
+  {
+    "id": "golden-b-guardian-stroke",
+    "category": "golden",
+    "kind": "guardian",
+    "guardian": {
+      "pattern": "tremor",
+      "steps": [
+        {
+          "action": "signal",
+          "expectSuppressed": false
+        },
+        {
+          "action": "update",
+          "outcome": "befast_started",
+          "chosen_symptom": "แขนหรือมืออ่อนแรงข้างเดียว"
+        },
+        {
+          "action": "update",
+          "outcome": "emergency_opened",
+          "payload": {
+            "befast": {
+              "f": "no",
+              "a": "yes"
+            },
+            "onset": "ภายใน 1 ชั่วโมง",
+            "via": "befast"
+          }
+        },
+        {
+          "action": "update",
+          "outcome": "tel_1669_tapped"
+        },
+        {
+          "action": "update",
+          "outcome": "ucep_shown"
+        },
+        {
+          "action": "update",
+          "outcome": "family_notified"
+        },
+        {
+          "action": "er_passport",
+          "emergency": {
+            "symptom": "แขนหรือมืออ่อนแรงข้างเดียว",
+            "onset": "ภายใน 1 ชั่วโมง",
+            "befast": {
+              "f": "no",
+              "a": "yes"
+            }
+          },
+          "mustMatch": [
+            "ภายใน 1 ชั่วโมง",
+            "UCEP",
+            "ฉุกเฉินวิกฤต",
+            "แขนหรือมืออ่อนแรงข้างเดียว"
+          ]
+        },
+        {
+          "action": "update",
+          "outcome": "er_passport_created"
+        }
+      ]
+    },
+    "turns": [],
+    "expect": {
+      "finalRoute": "cards"
+    },
+    "note": "เคสเวที B — Guardian stroke path ครบทุก outcome ระดับ API (ส่วน UI ตรวจใน QA-CHECKLIST)"
+  },
+  {
+    "id": "golden-b-variant-chest-direct",
+    "category": "golden",
+    "kind": "guardian",
+    "guardian": {
+      "pattern": "tremor",
+      "steps": [
+        {
+          "action": "signal",
+          "expectSuppressed": false
+        },
+        {
+          "action": "update",
+          "outcome": "emergency_opened",
+          "chosen_symptom": "เจ็บหน้าอก หรือหายใจลำบาก",
+          "payload": {
+            "via": "popup"
+          }
+        },
+        {
+          "action": "update",
+          "outcome": "tel_1669_tapped"
+        }
+      ]
+    },
+    "turns": [],
+    "expect": {
+      "finalRoute": "cards"
+    },
+    "note": "Variant: อาการวิกฤตชัด → ข้าม BEFAST เข้า Emergency ตรง"
+  },
+  {
+    "id": "golden-b-variant-triage-prefill",
+    "category": "golden",
+    "turns": [
+      {
+        "user": "มีอาการใจสั่น เหงื่อแตก และหน้ามืดเฉียบพลันเมื่อสักครู่"
+      },
+      {
+        "answers": {
+          "scheme": "บัตรทอง",
+          "age": "45",
+          "area": "ลาดพร้าว"
+        }
+      },
+      {
+        "answers": {}
+      }
+    ],
+    "expect": {
+      "finalRoute": "cards",
+      "cardTypesInclude": [
+        "evidence",
+        "next_steps"
+      ],
+      "citationsRequired": true,
+      "maxQuestions": 4,
+      "mustNotMatch": [
+        "โหมดสาธิต"
+      ],
+      "finalRouteAnyOf": [
+        "cards",
+        "emergency"
+      ]
+    },
+    "note": "Variant: ใจสั่น → routed_triage ผ่าน /api/turn เดิม — prescreen เชิงลึกมีสิทธิ์ escalate เป็นฉุกเฉินโดยชอบ (safety-first)"
+  }
+]

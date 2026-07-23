@@ -17,6 +17,8 @@
     "test:unit": "vitest run tests/unit",
     "test:integration": "vitest run tests/integration",
     "test:e2e": "playwright test",
+    "seed:demo": "tsx scripts/seed-demo.ts",
+    "demo:check": "tsx scripts/demo-check.ts",
     "verify": "npm run typecheck && npm run lint && npm run test && npm run build"
   },
   "dependencies": {

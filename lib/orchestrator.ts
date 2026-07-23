@@ -6,6 +6,8 @@ import { safeParseJson } from "./gemini";
 import { llmJson, llmText } from "./llm";
 import { featureFlags } from "./env";
 import { safetyPreCheck, emergencyCardFromHotline } from "./safety";
+import { detectBoundary, isPredominantlyEnglish, EN_NOTICE, OUT_OF_AREA_COPY } from "./boundary";
+import { isFarProvince, isChildCase, MAX_QUESTIONS_PER_PANEL, MAX_CLINICAL_QUESTIONS } from "@/demo/scope";
 import { runPrescreen } from "./runpod/prescreen";
 import type { PatientCase } from "./runpod/prompt";
 import {
@@ -36,6 +38,13 @@ import type {
 } from "./types";
 
 const CURRENT_YEAR = new Date().getFullYear();
+
+// นโยบาย 30 บาทรักษาทุกที่ (สปสช.) — citation คงที่สำหรับเคสสิทธิ์ต่างจังหวัด
+const THIRTY_BAHT_ANYWHERE_CITATION = {
+  title: "ประกาศ สปสช. เรื่อง 30 บาทรักษาทุกที่ด้วยบัตรประชาชนใบเดียว (มีผลครอบคลุมกรุงเทพมหานคร ปี 2567)",
+  url: "https://www.nhso.go.th/news/4237",
+  publisher: "สำนักงานหลักประกันสุขภาพแห่งชาติ (สปสช.)",
+};
 
 export interface TurnContext {
   text: string;
@@ -114,9 +123,12 @@ function applyAnswers(base: Understood, answers: Record<string, string>): Unders
       u.coverage_basis = v;
       u.scheme_confidence = "probable_from_answers";
       u.scheme_needs_verification = true;
-      if (/นายจ้าง|พนักงาน|บริษัท|ประกันสังคม|หักเงิน|สมทบ/i.test(v)) u.scheme = "SSS";
+      // ตรวจ branch เชิงปฏิเสธ/อิสระ "ก่อน" SSS — มิฉะนั้นตัวเลือก
+      // "อาชีพอิสระ/ไม่ได้ส่งประกันสังคม/ไม่มีสิทธิอื่น" จะโดน substring
+      // "ประกันสังคม" จับเป็น SSS ทั้งที่ความหมายตรงข้าม
+      if (/อิสระ|ไม่ได้ทำงาน|ไม่มีนายจ้าง|ไม่ได้ส่งประกันสังคม|ไม่มีสิทธิอื่น|ว่างงาน/i.test(v)) u.scheme = "UCS";
       else if (/ข้าราชการ|พนักงานรัฐ|ครอบครัวข้าราชการ|คู่สมรส|บิดา|มารดา|บุตร/i.test(v)) u.scheme = "CSMBS";
-      else if (/อิสระ|ไม่ได้ทำงาน|ไม่มีนายจ้าง|ไม่ได้ส่งประกันสังคม|ไม่มีสิทธิอื่น|ว่างงาน/i.test(v)) u.scheme = "UCS";
+      else if (/นายจ้าง|พนักงาน|บริษัท|ประกันสังคม|หักเงิน|สมทบ/i.test(v)) u.scheme = "SSS";
       else if (/เอกชน/i.test(v)) {
         delete u.scheme;
         u.private_insurance = true;
@@ -328,7 +340,9 @@ function buildQuestions(u: Understood): TurnQuestion[] {
       other_placeholder: "พิมพ์ชื่อเขต/อำเภอ",
     });
 
-  if (rightsRelevant && (u.scheme === "UCS" || u.scheme === "SSS") && !u.registered_facility)
+  // ถามเฉพาะ flow สิทธิ์/สถานพยาบาลล้วน — symptom flow หาที่ใกล้จาก area ได้เลย
+  // (ลดจำนวนคำถามให้อยู่ในงบ ≤3-4 ข้อของเคสเล่าอาการ)
+  if (rightsRelevant && !symptomFlow && (u.scheme === "UCS" || u.scheme === "SSS") && !u.registered_facility)
     qs.push({
       field: "registered_facility",
       label: "สถานพยาบาลตามสิทธิ์",
@@ -341,6 +355,23 @@ function buildQuestions(u: Understood): TurnQuestion[] {
   // which intentionally leaves its slot null → rule stays INDETERMINATE)
   const answered = new Set((u._answered as string[] | undefined) ?? []);
   return qs.filter((q) => !answered.has(q.field) && showIfApplies(q, u));
+}
+
+// งบคำถามต่อ panel — นับเฉพาะคำถามหลัก; คำถาม conditional (show_if) โผล่เฉพาะ
+// เมื่อคำตอบก่อนหน้า trigger จึงไม่กินงบ แต่ต้องมี parent อยู่ใน panel เดียวกัน
+function capQuestions(qs: TurnQuestion[], max: number): TurnQuestion[] {
+  const out: TurnQuestion[] = [];
+  let counted = 0;
+  for (const q of qs) {
+    if (q.show_if) {
+      if (out.some((p) => p.field === q.show_if!.field)) out.push(q);
+      continue;
+    }
+    if (counted >= max) continue;
+    out.push(q);
+    counted++;
+  }
+  return out;
 }
 
 function showIfApplies(q: TurnQuestion, u: Understood): boolean {
@@ -371,7 +402,8 @@ async function extractUnderstanding(
  "patient_role": "ผู้ป่วยเอง|ผู้ดูแล|null",
  "age": "number|null   // เฉพาะเมื่อมีตัวเลขอายุในข้อความ",
  "scheme": "UCS|SSS|CSMBS|null   // เฉพาะเมื่อผู้ใช้ระบุ: บัตรทอง=UCS ประกันสังคม=SSS ข้าราชการ=CSMBS",
- "area": "ชื่อเขต/อำเภอ|null",
+ "area": "เขต/อำเภอที่ผู้ป่วยอยู่ตอนนี้และสะดวกไปรับบริการ|null   // ห้ามใส่จังหวัดที่สิทธิ์ลงทะเบียน เช่น 'สิทธิ์อยู่ขอนแก่น มาอยู่บางนา' → area=บางนา",
+ "scheme_registered_province": "จังหวัดที่สิทธิ์ลงทะเบียนไว้ ถ้าผู้ใช้บอกว่าสิทธิ์อยู่ต่างจังหวัด|null",
  "symptoms": ["อาการเป็นคำสั้นๆ"],
  "condition_hint": "โรคที่กล่าวถึง เช่น เบาหวาน|null",
  "intent": "symptom_triage|rights_discovery|facility_search|benefit_eligibility|document_qa|general_info"
@@ -489,6 +521,35 @@ export async function runTurnStream(
   const pre = safetyPreCheck(safetyText);
   if (pre.card) push(pre.card);
 
+  // (1b) boundary gate — deterministic, ก่อน NLU/LLM เสมอ (เฉพาะ turn ข้อความอิสระ
+  // ที่ไม่ใช่ฉุกเฉิน): ทักทาย/นอกเรื่อง/อ่านไม่ออก/ขอวินิจฉัย/ขอ dosing/
+  // ขอคุยกับคน/prompt injection/ร้องเรียน → ตอบ copy มาตรฐานพร้อม next step
+  if (!pre.emergency && !ctx.answers) {
+    const hasContext =
+      (ctx.priorSlots.symptoms?.length ?? 0) > 0 || !!ctx.priorSlots.intent;
+    const boundary = detectBoundary(ctx.text, hasContext);
+    if (boundary) {
+      for (const card of boundary.cards) push(card);
+      emit("understood", ctx.priorSlots);
+      return {
+        understood: ctx.priorSlots,
+        pending_question: boundary.pending_question,
+        quick_replies: boundary.quick_replies,
+        cards,
+        audit: {
+          queries_run: [`boundary(${boundary.type})`],
+          rule_traces: [],
+          citations: [],
+          prescreen_result: null,
+        },
+      };
+    }
+  }
+  // ภาษาอังกฤษ: จำ flag ไว้ใน slots เพื่อให้ turn ตอบคำถาม (answers) รอบถัดไป
+  // ยังปิดท้าย EN notice ได้ (§7)
+  const englishTurn = !ctx.answers && isPredominantlyEnglish(ctx.text);
+  const englishInput = englishTurn || ctx.priorSlots._lang_en === true;
+
   // (2) understanding: structured answers merge deterministically (no NLU),
   //     free text goes through guarded NLU extraction.
   let u: Understood;
@@ -504,6 +565,7 @@ export async function runTurnStream(
     u = applyAnswers(u, ctx.prefill);
     queries_run.push("prefill_merge(deterministic)");
   }
+  if (englishTurn) u._lang_en = true;
   emit("understood", u);
 
   // A deterministic emergency match terminates the normal routing pipeline.
@@ -541,13 +603,17 @@ export async function runTurnStream(
       u._clinical_for !== symKey &&
       u._prescreened_symptoms !== symKey
     ) {
-      const clin = await generateClinicalQuestions(u, ctx.text);
+      const clinAll = await generateClinicalQuestions(u, ctx.text);
+      // งบคำถามต่อ panel: clinical สูงสุด 2 เมื่อยังมีคำถามสิทธิ์ค้าง เพื่อให้
+      // รอบเดียวไม่เกิน MAX_QUESTIONS_PER_PANEL (ข้อที่เหลือถามรอบถัดไปเอง)
+      const clin = clinAll.slice(0, questions.length ? MAX_CLINICAL_QUESTIONS : 3);
       if (clin.length) {
         u._clinical_questions = clin.map((c) => ({ field: c.field, question: c.label }));
         u._clinical_for = symKey;
         questions = [...clin, ...questions];
       }
     }
+    questions = capQuestions(questions, MAX_QUESTIONS_PER_PANEL);
     if (questions.length) {
       emit("questions", questions);
       return {
@@ -665,16 +731,27 @@ export async function runTurnStream(
           ? `สิทธิ์ที่เกี่ยวกับเคสนี้ (${SCHEME_LABELS[scheme] ?? scheme})`
           : `สิทธิ์ที่ครอบคลุม (${SCHEME_LABELS[scheme] ?? scheme})`;
         queries_run.push(isSymptomFlow ? `R1 recommended(${scheme})` : `R1 services(${scheme})`);
-        if (services.length) {
-          push({
-            type: "rights",
-            title,
-            items: services.slice(0, 6).map((s) => ({
-              name: s.name,
-              copay: s.copay || "ยังไม่มีข้อมูลค่าใช้จ่ายที่ยืนยันได้",
-              interval: s.interval,
-            })),
+        const items = services.slice(0, 6).map((s) => ({
+          name: s.name,
+          copay: s.copay || "ยังไม่มีข้อมูลค่าใช้จ่ายที่ยืนยันได้",
+          interval: s.interval,
+        }));
+        // สิทธิ์บัตรทองลงทะเบียนต่างจังหวัด → นำ "30 บาทรักษาทุกที่" ขึ้นเป็น
+        // ข้อแรกเสมอ (deterministic + citation) — คือคำตอบหลักของเคสประชากรแฝง
+        const registeredFar =
+          scheme === "UCS" &&
+          (isFarProvince(u.scheme_registered_province as string | undefined) ||
+            (!!u.scheme_registered_province && u.scheme_registered_province !== u.area));
+        if (registeredFar) {
+          items.unshift({
+            name: "30 บาทรักษาทุกที่ — ใช้สิทธิ์บัตรทองที่หน่วยบริการปฐมภูมิในเครือข่ายได้ทั่วประเทศ ไม่ต้องย้ายสิทธิ์ก่อน",
+            copay: "ไม่เสียค่าใช้จ่าย (หน่วยบริการที่เข้าร่วม)",
+            interval: undefined,
           });
+          citations.push(THIRTY_BAHT_ANYWHERE_CITATION);
+        }
+        if (items.length) {
+          push({ type: "rights", title, items: items.slice(0, 6) });
           const ri = rightInfo(scheme);
           if (ri?.source_url)
             citations.push({ title: ri.source_title ?? ri.name_th, url: ri.source_url, publisher: ri.publisher ?? "" });
@@ -701,8 +778,18 @@ export async function runTurnStream(
     );
   }
 
-  // facility
-  if (scheme) {
+  // facility — จังหวัดไกลนอกพื้นที่ facility data: แจ้งขอบเขตตรง ๆ + ช่องทาง 1330
+  // (สิทธิ์ยังตอบเต็มรูปแบบจาก tasks อื่น — Guardrail "fail อย่างสง่างาม")
+  if (scheme && isFarProvince(u.area)) {
+    push({
+      type: "safety",
+      level: "none",
+      title: "สถานพยาบาลในพื้นที่ของคุณ",
+      body: OUT_OF_AREA_COPY,
+      actions: [{ label: "โทร 1330 (สปสช. ตลอด 24 ชม.)", tel: "1330", style: "primary" }],
+    });
+    queries_run.push("facility_out_of_area(1330)");
+  } else if (scheme) {
     tasks.push(
       (async () => {
         const facilities = await searchFacilities({ scheme, area: u.area, conditionId: condId || undefined });
@@ -752,14 +839,15 @@ export async function runTurnStream(
     citations.push(...optionCitations(optionsCard));
   }
 
-  // evidence (last)
+  // evidence (last) — เคสภาษาอังกฤษ: ตอบไทย + ปิดท้ายประโยค EN แจ้ง Thai-first (§7)
   push({
     type: "evidence",
     title: "ที่มา & ความน่าเชื่อถือ",
     sources: dedupeCitations(citations).slice(0, 8),
     rule_traces: ruleTraces as EvidenceCard["rule_traces"],
     disclaimer:
-      "คำแนะนำเบื้องต้น ไม่ใช่การวินิจฉัยแทนแพทย์ · สิทธิ์ตัดสินด้วย rule engine (ไม่ใช่ AI) · ไม่เก็บข้อมูลส่วนตัวถ้าไม่ยินยอม",
+      "คำแนะนำเบื้องต้น ไม่ใช่การวินิจฉัยแทนแพทย์ · สิทธิ์ตัดสินด้วย rule engine (ไม่ใช่ AI) · ไม่เก็บข้อมูลส่วนตัวถ้าไม่ยินยอม" +
+      (englishInput ? ` · ${EN_NOTICE}` : ""),
   });
 
   return {
@@ -914,16 +1002,21 @@ async function synthCareBody(
     free_services_under_scheme: extra?.services,
     comorbidity: comorbid.map((c) => c.disease),
   };
+  const childCase = isChildCase(u.age);
   const fallback =
     `อาการที่เล่ามาเข้าได้กับ${conditionTh ?? prescreen.disease ?? "ภาวะที่ควรตรวจเพิ่ม"} ` +
-    `แนะนำให้ไปพบ${deptThai(prescreen.department) ?? "แพทย์"} (${severityThai(prescreen.severity)})` +
+    `แนะนำให้${childCase ? "พาเด็กไปพบ" : "ไปพบ"}${deptThai(prescreen.department) ?? "แพทย์"} (${severityThai(prescreen.severity)})` +
     `${extra?.services?.length && extra.scheme ? ` — ควรถามสถานพยาบาลเรื่องการใช้สิทธิ${extra.scheme}สำหรับ${extra.services[0]}` : ""}. ` +
     `นี่เป็นคำแนะนำเบื้องต้น ไม่ใช่การวินิจฉัยแทนแพทย์`;
   if (!featureFlags.hasLLM()) return fallback;
   const prompt = `เขียนคำแนะนำเชิงปรึกษา 2-3 ประโยคสั้นๆ ภาษาไทยสุภาพ อบอุ่น จากข้อมูล JSON ด้านล่าง โครงคำตอบ:
 (1) อาการที่เล่ามา "เข้าได้กับ/อาจเกี่ยวกับ" ภาวะอะไร (ใช้คำระวัง ห้ามฟันธงวินิจฉัย)
 (2) ควรทำอะไรต่อแบบจับต้องได้ — ไปแผนกไหน เร่งด่วนแค่ไหน และถ้ามี free_services_under_scheme ให้บอกว่าตรวจอะไรได้ฟรีตามสิทธิ
-ห้ามตัดสินสิทธิ์ ห้ามเวิ่นเว้อ ห้ามขึ้นต้นด้วย "จากข้อมูล"
+ห้ามตัดสินสิทธิ์ ห้ามเวิ่นเว้อ ห้ามขึ้นต้นด้วย "จากข้อมูล"${
+    childCase
+      ? "\nผู้ป่วยเป็นเด็กอายุต่ำกว่า 15 ปี: แนะนำพาไปพบแพทย์ที่คลินิก/โรงพยาบาลเท่านั้น ห้ามแนะนำซื้อยากินเองหรือดูแลเองที่บ้านเป็นทางหลัก"
+      : ""
+  }
 ถ้ามี scheme ให้กล่าวถึงได้เฉพาะสิทธิ์นั้น ห้ามพูดชื่อสิทธิ์อื่น
 ถ้าไม่มี scheme ห้ามพูดว่าใช้บัตรทอง/ประกันสังคม/ข้าราชการ ให้บอกว่าควรตรวจสอบสิทธิ์ก่อน:
 ${JSON.stringify(facts)}
@@ -931,6 +1024,8 @@ ${JSON.stringify(facts)}
   const text = await llmText(prompt, { maxOutputTokens: 300 }).catch(() => "");
   const out = text.trim();
   if (!out) return fallback;
+  // เด็ก <15: ถ้า LLM เผลอแนะนำ self-care/ร้านยาเป็นทางหลัก → ใช้ fallback แทน
+  if (childCase && /ซื้อยา(กินเอง|เอง)?|ร้านยา|ดูแล(ตัว)?เองที่บ้าน/.test(out)) return fallback;
   if (extra?.scheme === "ประกันสังคม" && /บัตรทอง|หลักประกันสุขภาพ|30 ?บาท|ข้าราชการ/.test(out)) return fallback;
   if (extra?.scheme === "บัตรทอง" && /ประกันสังคม|ข้าราชการ/.test(out)) return fallback;
   if (extra?.scheme === "ข้าราชการ" && /บัตรทอง|หลักประกันสุขภาพ|30 ?บาท|ประกันสังคม/.test(out)) return fallback;
@@ -945,6 +1040,10 @@ async function synthNextSteps(
   hasFacility: boolean
 ): Promise<string[]> {
   const steps: string[] = [];
+  // เด็ก <15 ปี — เส้นทางอนุรักษ์นิยม: พาไปพบแพทย์เสมอ ไม่แนะนำซื้อยาเอง (§1.4)
+  if (isChildCase(u.age)) {
+    steps.push("เด็กอายุต่ำกว่า 15 ปี ควรพาไปพบแพทย์ที่คลินิก/โรงพยาบาลเพื่อประเมินโดยตรง ไม่แนะนำซื้อยารักษาเอง");
+  }
   steps.push("เตรียมบัตรประชาชน" + (u.scheme === "SSS" ? " + บัตรรับรองสิทธิประกันสังคม" : ""));
   if (u.scheme_needs_verification) steps.push("ตรวจสอบสิทธิ์และสถานพยาบาลตามสิทธิ์ก่อนใช้บริการ");
   if (u.registered_facility && !/ไม่ทราบ|ต้องการหา/.test(String(u.registered_facility))) {

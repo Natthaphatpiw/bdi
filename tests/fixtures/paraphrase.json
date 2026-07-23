@@ -1,0 +1,162 @@
+[
+  {
+    "id": "para-a-1",
+    "category": "paraphrase",
+    "turns": [
+      { "user": "คุณแม่วัย 62 อยู่บางนา ตาเริ่มมัว เพลียบ่อย เป็นเบาหวาน สิทธิ์อยู่ขอนแก่น" },
+      { "answers": { "pension": "ไม่ได้รับ" } },
+      { "answers": { "pension": "ไม่ได้รับ" } }
+    ],
+    "expect": {
+      "finalRoute": "cards",
+      "slotsEqual": { "age": 62, "scheme": "UCS", "area": "บางนา" },
+      "facilityTop1SameAs": "golden-a-nut-mother",
+      "citationsRequired": true,
+      "mustMatch": ["30 บาทรักษาทุกที่"]
+    }
+  },
+  {
+    "id": "para-a-2",
+    "category": "paraphrase",
+    "turns": [
+      { "user": "แม่อายุ 62 ปี มีเบาหวาน ช่วงนี้อ่อนเพลียมาก มองอะไรพร่า ๆ ตอนนี้มาอยู่กับผมแถวบางนา แต่บัตรทองของแม่ลงทะเบียนที่ขอนแก่น" },
+      { "answers": { "pension": "ไม่ได้รับ" } },
+      { "answers": { "pension": "ไม่ได้รับ" } }
+    ],
+    "expect": {
+      "finalRoute": "cards",
+      "slotsEqual": { "age": 62, "scheme": "UCS", "area": "บางนา" },
+      "facilityTop1SameAs": "golden-a-nut-mother",
+      "citationsRequired": true,
+      "mustMatch": ["30 บาทรักษาทุกที่"]
+    }
+  },
+  {
+    "id": "para-a-3",
+    "category": "paraphrase",
+    "turns": [
+      { "user": "อยากพาแม่ไปตรวจ แม่เป็นเบาหวาน อายุ 62 เพลียกับตามัวบ่อย ใช้บัตรทองแต่สิทธิ์อยู่ต่างจังหวัดที่ขอนแก่น ตอนนี้อยู่บางนา" },
+      { "answers": { "pension": "ไม่ได้รับ" } },
+      { "answers": { "pension": "ไม่ได้รับ" } }
+    ],
+    "expect": {
+      "finalRoute": "cards",
+      "slotsEqual": { "age": 62, "scheme": "UCS", "area": "บางนา" },
+      "facilityTop1SameAs": "golden-a-nut-mother",
+      "citationsRequired": true,
+      "mustMatch": ["30 บาทรักษาทุกที่"]
+    }
+  },
+  {
+    "id": "para-a-4",
+    "category": "paraphrase",
+    "turns": [
+      { "user": "เบาหวานของคุณแม่ (62 ปี) ทำให้ช่วงนี้ตาพร่ามัวและเพลียง่าย แม่ย้ายมาอยู่บางนากับลูก สิทธิบัตรทองยังอยู่ขอนแก่น ควรทำยังไง" },
+      { "answers": { "pension": "ไม่ได้รับ" } },
+      { "answers": { "pension": "ไม่ได้รับ" } }
+    ],
+    "expect": {
+      "finalRoute": "cards",
+      "slotsEqual": { "age": 62, "scheme": "UCS", "area": "บางนา" },
+      "facilityTop1SameAs": "golden-a-nut-mother",
+      "citationsRequired": true,
+      "mustMatch": ["30 บาทรักษาทุกที่"]
+    }
+  },
+  {
+    "id": "para-a-5",
+    "category": "paraphrase",
+    "turns": [
+      { "user": "ช่วยดูให้หน่อยครับ แม่ผมเพลียมากช่วงนี้ ตามองไม่ค่อยชัด เป็นเบาหวานมาหลายปี อายุ 62 แล้ว ตัวอยู่บางนาแต่บัตรทองอยู่ขอนแก่น" },
+      { "answers": { "pension": "ไม่ได้รับ" } },
+      { "answers": { "pension": "ไม่ได้รับ" } }
+    ],
+    "expect": {
+      "finalRoute": "cards",
+      "slotsEqual": { "age": 62, "scheme": "UCS", "area": "บางนา" },
+      "facilityTop1SameAs": "golden-a-nut-mother",
+      "citationsRequired": true,
+      "mustMatch": ["30 บาทรักษาทุกที่"]
+    }
+  },
+  {
+    "id": "para-fon-base",
+    "category": "paraphrase",
+    "turns": [
+      { "user": "ฉันอายุ 34 เป็นพนักงานบริษัท ประกันสังคม ม.33 ปวดฟันกรามมาสามวัน อยู่ลาดพร้าว ใช้สิทธิ์ทำฟันได้ไหม" },
+      { "answers": { "sss_months": "เกิน 3 เดือน", "pension": "ไม่แน่ใจ" } },
+      { "answers": {} }
+    ],
+    "expect": {
+      "finalRoute": "cards",
+      "slotsEqual": { "age": 34, "scheme": "SSS", "area": "ลาดพร้าว" },
+      "citationsRequired": true,
+      "mustMatch": ["ทันตกรรม|ทำฟัน|900"]
+    },
+    "note": "เคสฝน — สิทธิ์หลับ ทันตกรรม ปกส."
+  },
+  {
+    "id": "para-fon-1",
+    "category": "paraphrase",
+    "turns": [
+      { "user": "ปวดฟันมาก อยากใช้สิทธิประกันสังคมทำฟัน ฉันมาตรา 33 อายุ 34 อยู่แถวลาดพร้าว" },
+      { "answers": { "sss_months": "เกิน 3 เดือน", "pension": "ไม่แน่ใจ" } },
+      { "answers": {} }
+    ],
+    "expect": {
+      "finalRoute": "cards",
+      "slotsEqual": { "age": 34, "scheme": "SSS", "area": "ลาดพร้าว" },
+      "facilityTop1SameAs": "para-fon-base",
+      "citationsRequired": true,
+      "mustMatch": ["ทันตกรรม|ทำฟัน|900"]
+    }
+  },
+  {
+    "id": "para-fon-2",
+    "category": "paraphrase",
+    "turns": [
+      { "user": "เป็นพนักงานออฟฟิศ ประกันสังคมมาตรา 33 อายุ 34 ปี ฟันกรามซ้ายปวดตุบ ๆ สามวันแล้ว บ้านอยู่ลาดพร้าว" },
+      { "answers": { "sss_months": "เกิน 3 เดือน", "pension": "ไม่แน่ใจ" } },
+      { "answers": {} }
+    ],
+    "expect": {
+      "finalRoute": "cards",
+      "slotsEqual": { "age": 34, "scheme": "SSS", "area": "ลาดพร้าว" },
+      "facilityTop1SameAs": "para-fon-base",
+      "citationsRequired": true,
+      "mustMatch": ["ทันตกรรม|ทำฟัน|900"]
+    }
+  },
+  {
+    "id": "para-keng-base",
+    "category": "paraphrase",
+    "turns": [
+      { "user": "ผมอายุ 28 ทำงานโรงงานแถวบางนา เมื่อคืนมีไข้ เจ็บคอ ตัวร้อน สิทธิบัตรทองอยู่บุรีรัมย์ ควรไปไหนดี" },
+      { "answers": {} },
+      { "answers": {} }
+    ],
+    "expect": {
+      "finalRoute": "cards",
+      "slotsEqual": { "age": 28, "scheme": "UCS", "area": "บางนา" },
+      "citationsRequired": true,
+      "mustMatch": ["30 บาทรักษาทุกที่"]
+    },
+    "note": "เคสเก่ง — สิทธิ์ไกลบ้าน ไข้หวัดหลังเลิกงาน"
+  },
+  {
+    "id": "para-keng-1",
+    "category": "paraphrase",
+    "turns": [
+      { "user": "ตัวร้อน เจ็บคอ มีไข้ตั้งแต่เมื่อคืน ผมทำงานอยู่บางนา อายุ 28 บัตรทองลงทะเบียนไว้ที่บุรีรัมย์" },
+      { "answers": {} },
+      { "answers": {} }
+    ],
+    "expect": {
+      "finalRoute": "cards",
+      "slotsEqual": { "age": 28, "scheme": "UCS", "area": "บางนา" },
+      "facilityTop1SameAs": "para-keng-base",
+      "citationsRequired": true,
+      "mustMatch": ["30 บาทรักษาทุกที่"]
+    }
+  }
+]

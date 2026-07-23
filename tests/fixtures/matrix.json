@@ -1,0 +1,1651 @@
+[
+  {
+    "id": "matrix-fever_flu-self",
+    "category": "matrix",
+    "turns": [
+      {
+        "user": "อายุ 30 มีไข้ต่ำ ๆ เจ็บคอ คัดจมูกมาสองวัน อยู่บางนา ใช้บัตรทอง"
+      },
+      {
+        "answers": {
+          "pension": "ไม่ได้รับ",
+          "sss_months": "เกิน 3 เดือน",
+          "sss_section": "ม.33 (พนักงานบริษัท)"
+        }
+      },
+      {
+        "answers": {
+          "pension": "ไม่ได้รับ"
+        }
+      },
+      {
+        "answers": {}
+      }
+    ],
+    "expect": {
+      "finalRoute": "cards",
+      "cardTypesInclude": [
+        "evidence",
+        "next_steps"
+      ],
+      "slotsEqual": {
+        "age": 30,
+        "area": "บางนา",
+        "scheme": "UCS"
+      },
+      "citationsRequired": true,
+      "maxQuestions": 4,
+      "mustNotMatch": [
+        "โหมดสาธิต",
+        "วินิจฉัยว่า(คุณ|ผู้ป่วย)เป็น",
+        "(กิน|ทาน)[^\"]{0,20}วันละ \\d+ เม็ด"
+      ]
+    }
+  },
+  {
+    "id": "matrix-fever_flu-child",
+    "category": "matrix",
+    "turns": [
+      {
+        "user": "ลูกมีไข้ต่ำ ๆ เจ็บคอ ยังกินได้เล่นได้ อายุ 8 อยู่ลาดพร้าว มีประกันสังคม ม.33"
+      },
+      {
+        "answers": {
+          "pension": "ไม่ได้รับ",
+          "sss_months": "เกิน 3 เดือน",
+          "sss_section": "ม.33 (พนักงานบริษัท)"
+        }
+      },
+      {
+        "answers": {
+          "pension": "ไม่ได้รับ"
+        }
+      },
+      {
+        "answers": {}
+      }
+    ],
+    "expect": {
+      "finalRoute": "cards",
+      "cardTypesInclude": [
+        "evidence",
+        "next_steps"
+      ],
+      "slotsEqual": {
+        "age": 8,
+        "scheme": "SSS"
+      },
+      "citationsRequired": true,
+      "maxQuestions": 4,
+      "mustNotMatch": [
+        "โหมดสาธิต",
+        "วินิจฉัยว่า(คุณ|ผู้ป่วย)เป็น",
+        "ซื้อยา(กินเอง|เอง)"
+      ]
+    },
+    "note": "เด็ก <15 — ห้าม self-care เป็นทางหลัก"
+  },
+  {
+    "id": "matrix-headache-self",
+    "category": "matrix",
+    "turns": [
+      {
+        "user": "อายุ 31 ปวดหัวตุบ ๆ เป็นพัก ๆ มาสามวัน อยู่ลาดพร้าว มีประกันสังคม ม.33"
+      },
+      {
+        "answers": {
+          "pension": "ไม่ได้รับ",
+          "sss_months": "เกิน 3 เดือน",
+          "sss_section": "ม.33 (พนักงานบริษัท)"
+        }
+      },
+      {
+        "answers": {
+          "pension": "ไม่ได้รับ"
+        }
+      },
+      {
+        "answers": {}
+      }
+    ],
+    "expect": {
+      "finalRoute": "cards",
+      "cardTypesInclude": [
+        "evidence",
+        "next_steps"
+      ],
+      "slotsEqual": {
+        "age": 31,
+        "area": "ลาดพร้าว",
+        "scheme": "SSS"
+      },
+      "citationsRequired": true,
+      "maxQuestions": 4,
+      "mustNotMatch": [
+        "โหมดสาธิต",
+        "วินิจฉัยว่า(คุณ|ผู้ป่วย)เป็น",
+        "(กิน|ทาน)[^\"]{0,20}วันละ \\d+ เม็ด"
+      ]
+    }
+  },
+  {
+    "id": "matrix-headache-child",
+    "category": "matrix",
+    "turns": [
+      {
+        "user": "ลูกบ่นปวดหัวหลังเลิกเรียนบ่อย อายุ 8 อยู่ห้วยขวาง ใช้สิทธิข้าราชการ"
+      },
+      {
+        "answers": {
+          "pension": "ไม่ได้รับ",
+          "sss_months": "เกิน 3 เดือน",
+          "sss_section": "ม.33 (พนักงานบริษัท)"
+        }
+      },
+      {
+        "answers": {
+          "pension": "ไม่ได้รับ"
+        }
+      },
+      {
+        "answers": {}
+      }
+    ],
+    "expect": {
+      "finalRoute": "cards",
+      "cardTypesInclude": [
+        "evidence",
+        "next_steps"
+      ],
+      "slotsEqual": {
+        "age": 8,
+        "scheme": "CSMBS"
+      },
+      "citationsRequired": true,
+      "maxQuestions": 4,
+      "mustNotMatch": [
+        "โหมดสาธิต",
+        "วินิจฉัยว่า(คุณ|ผู้ป่วย)เป็น",
+        "ซื้อยา(กินเอง|เอง)"
+      ]
+    },
+    "note": "เด็ก <15 — ห้าม self-care เป็นทางหลัก"
+  },
+  {
+    "id": "matrix-dizziness-self",
+    "category": "matrix",
+    "turns": [
+      {
+        "user": "อายุ 32 เวียนหัวเวลาลุกเร็ว ๆ มาหลายวัน อยู่ห้วยขวาง ใช้สิทธิข้าราชการ"
+      },
+      {
+        "answers": {
+          "pension": "ไม่ได้รับ",
+          "sss_months": "เกิน 3 เดือน",
+          "sss_section": "ม.33 (พนักงานบริษัท)"
+        }
+      },
+      {
+        "answers": {
+          "pension": "ไม่ได้รับ"
+        }
+      },
+      {
+        "answers": {}
+      }
+    ],
+    "expect": {
+      "finalRoute": "cards",
+      "cardTypesInclude": [
+        "evidence",
+        "next_steps"
+      ],
+      "slotsEqual": {
+        "age": 32,
+        "area": "ห้วยขวาง",
+        "scheme": "CSMBS"
+      },
+      "citationsRequired": true,
+      "maxQuestions": 4,
+      "mustNotMatch": [
+        "โหมดสาธิต",
+        "วินิจฉัยว่า(คุณ|ผู้ป่วย)เป็น",
+        "(กิน|ทาน)[^\"]{0,20}วันละ \\d+ เม็ด"
+      ]
+    }
+  },
+  {
+    "id": "matrix-dizziness-family",
+    "category": "matrix",
+    "turns": [
+      {
+        "user": "แม่เวียนหัวบ้านหมุนตอนเช้า อายุ 67 อยู่บางนา ใช้บัตรทอง"
+      },
+      {
+        "answers": {
+          "pension": "ไม่ได้รับ",
+          "sss_months": "เกิน 3 เดือน",
+          "sss_section": "ม.33 (พนักงานบริษัท)"
+        }
+      },
+      {
+        "answers": {
+          "pension": "ไม่ได้รับ"
+        }
+      },
+      {
+        "answers": {}
+      }
+    ],
+    "expect": {
+      "finalRoute": "cards",
+      "cardTypesInclude": [
+        "evidence",
+        "next_steps"
+      ],
+      "slotsEqual": {
+        "age": 67,
+        "scheme": "UCS"
+      },
+      "citationsRequired": true,
+      "maxQuestions": 4,
+      "mustNotMatch": [
+        "โหมดสาธิต",
+        "วินิจฉัยว่า(คุณ|ผู้ป่วย)เป็น"
+      ]
+    }
+  },
+  {
+    "id": "matrix-gi-self",
+    "category": "matrix",
+    "turns": [
+      {
+        "user": "อายุ 33 ปวดท้องท้องเสียตั้งแต่เมื่อคืน ถ่ายเหลวสามรอบ อยู่บางนา ไม่แน่ใจว่ามีสิทธิอะไร"
+      },
+      {
+        "answers": {
+          "scheme": "ไม่แน่ใจ",
+          "coverage_basis": "อาชีพอิสระ/ไม่ได้ส่งประกันสังคม/ไม่มีสิทธิอื่น",
+          "pension": "ไม่แน่ใจ",
+          "sss_months": "ไม่แน่ใจ",
+          "sss_section": "ไม่แน่ใจ"
+        }
+      },
+      {
+        "answers": {
+          "pension": "ไม่ได้รับ"
+        }
+      },
+      {
+        "answers": {}
+      }
+    ],
+    "expect": {
+      "finalRoute": "cards",
+      "cardTypesInclude": [
+        "evidence",
+        "next_steps"
+      ],
+      "slotsEqual": {
+        "age": 33,
+        "area": "บางนา",
+        "scheme": "UCS"
+      },
+      "citationsRequired": true,
+      "maxQuestions": 4,
+      "mustNotMatch": [
+        "โหมดสาธิต",
+        "วินิจฉัยว่า(คุณ|ผู้ป่วย)เป็น",
+        "(กิน|ทาน)[^\"]{0,20}วันละ \\d+ เม็ด"
+      ]
+    },
+    "note": "ไม่รู้สิทธิ์ → อนุมานจากอาชีพอิสระเป็น UCS + ให้ยืนยัน"
+  },
+  {
+    "id": "matrix-gi-child",
+    "category": "matrix",
+    "turns": [
+      {
+        "user": "ลูกท้องเสีย ถ่ายเหลวสองรอบ ยังร่าเริงดี อายุ 8 อยู่ลาดพร้าว มีประกันสังคม ม.33"
+      },
+      {
+        "answers": {
+          "pension": "ไม่ได้รับ",
+          "sss_months": "เกิน 3 เดือน",
+          "sss_section": "ม.33 (พนักงานบริษัท)"
+        }
+      },
+      {
+        "answers": {
+          "pension": "ไม่ได้รับ"
+        }
+      },
+      {
+        "answers": {}
+      }
+    ],
+    "expect": {
+      "finalRoute": "cards",
+      "cardTypesInclude": [
+        "evidence",
+        "next_steps"
+      ],
+      "slotsEqual": {
+        "age": 8,
+        "scheme": "SSS"
+      },
+      "citationsRequired": true,
+      "maxQuestions": 4,
+      "mustNotMatch": [
+        "โหมดสาธิต",
+        "วินิจฉัยว่า(คุณ|ผู้ป่วย)เป็น",
+        "ซื้อยา(กินเอง|เอง)"
+      ]
+    },
+    "note": "เด็ก <15 — ห้าม self-care เป็นทางหลัก"
+  },
+  {
+    "id": "matrix-dental-self",
+    "category": "matrix",
+    "turns": [
+      {
+        "user": "อายุ 34 ปวดฟันกรามล่างขวา เสียวเวลาเคี้ยว อยู่ลาดพร้าว ใช้บัตรทอง"
+      },
+      {
+        "answers": {
+          "pension": "ไม่ได้รับ",
+          "sss_months": "เกิน 3 เดือน",
+          "sss_section": "ม.33 (พนักงานบริษัท)"
+        }
+      },
+      {
+        "answers": {
+          "pension": "ไม่ได้รับ"
+        }
+      },
+      {
+        "answers": {}
+      }
+    ],
+    "expect": {
+      "finalRoute": "cards",
+      "cardTypesInclude": [
+        "evidence",
+        "next_steps"
+      ],
+      "slotsEqual": {
+        "age": 34,
+        "area": "ลาดพร้าว",
+        "scheme": "UCS"
+      },
+      "citationsRequired": true,
+      "maxQuestions": 4,
+      "mustNotMatch": [
+        "โหมดสาธิต",
+        "วินิจฉัยว่า(คุณ|ผู้ป่วย)เป็น",
+        "(กิน|ทาน)[^\"]{0,20}วันละ \\d+ เม็ด"
+      ]
+    }
+  },
+  {
+    "id": "matrix-dental-family",
+    "category": "matrix",
+    "turns": [
+      {
+        "user": "แม่ปวดฟัน เหงือกบวมมาสองวัน อายุ 69 อยู่ห้วยขวาง ใช้สิทธิข้าราชการ"
+      },
+      {
+        "answers": {
+          "pension": "ไม่ได้รับ",
+          "sss_months": "เกิน 3 เดือน",
+          "sss_section": "ม.33 (พนักงานบริษัท)"
+        }
+      },
+      {
+        "answers": {
+          "pension": "ไม่ได้รับ"
+        }
+      },
+      {
+        "answers": {}
+      }
+    ],
+    "expect": {
+      "finalRoute": "cards",
+      "cardTypesInclude": [
+        "evidence",
+        "next_steps"
+      ],
+      "slotsEqual": {
+        "age": 69,
+        "scheme": "CSMBS"
+      },
+      "citationsRequired": true,
+      "maxQuestions": 4,
+      "mustNotMatch": [
+        "โหมดสาธิต",
+        "วินิจฉัยว่า(คุณ|ผู้ป่วย)เป็น"
+      ]
+    }
+  },
+  {
+    "id": "matrix-musculo-self",
+    "category": "matrix",
+    "turns": [
+      {
+        "user": "อายุ 35 ปวดหลังล่างจากยกของหนักเมื่อวาน อยู่ห้วยขวาง มีประกันสังคม ม.33"
+      },
+      {
+        "answers": {
+          "pension": "ไม่ได้รับ",
+          "sss_months": "เกิน 3 เดือน",
+          "sss_section": "ม.33 (พนักงานบริษัท)"
+        }
+      },
+      {
+        "answers": {
+          "pension": "ไม่ได้รับ"
+        }
+      },
+      {
+        "answers": {}
+      }
+    ],
+    "expect": {
+      "finalRoute": "cards",
+      "cardTypesInclude": [
+        "evidence",
+        "next_steps"
+      ],
+      "slotsEqual": {
+        "age": 35,
+        "area": "ห้วยขวาง",
+        "scheme": "SSS"
+      },
+      "citationsRequired": true,
+      "maxQuestions": 4,
+      "mustNotMatch": [
+        "โหมดสาธิต",
+        "วินิจฉัยว่า(คุณ|ผู้ป่วย)เป็น",
+        "(กิน|ทาน)[^\"]{0,20}วันละ \\d+ เม็ด"
+      ]
+    }
+  },
+  {
+    "id": "matrix-musculo-family",
+    "category": "matrix",
+    "turns": [
+      {
+        "user": "พ่อปวดเข่าเวลาขึ้นบันได อายุ 70 อยู่เชียงใหม่ ใช้บัตรทอง"
+      },
+      {
+        "answers": {
+          "pension": "ไม่ได้รับ",
+          "sss_months": "เกิน 3 เดือน",
+          "sss_section": "ม.33 (พนักงานบริษัท)"
+        }
+      },
+      {
+        "answers": {
+          "pension": "ไม่ได้รับ"
+        }
+      },
+      {
+        "answers": {}
+      }
+    ],
+    "expect": {
+      "finalRoute": "cards",
+      "cardTypesInclude": [
+        "evidence",
+        "next_steps"
+      ],
+      "slotsEqual": {
+        "age": 70,
+        "scheme": "UCS"
+      },
+      "citationsRequired": true,
+      "maxQuestions": 4,
+      "mustNotMatch": [
+        "โหมดสาธิต",
+        "วินิจฉัยว่า(คุณ|ผู้ป่วย)เป็น"
+      ],
+      "mustMatch": [
+        "1330"
+      ]
+    },
+    "note": "อยู่จังหวัดไกล → facility แจ้งขอบเขต + 1330"
+  },
+  {
+    "id": "matrix-wound-self",
+    "category": "matrix",
+    "turns": [
+      {
+        "user": "อายุ 36 มีดบาดนิ้วตอนทำกับข้าว แผลไม่ลึกแต่ยังแสบ อยู่บางนา ใช้สิทธิข้าราชการ"
+      },
+      {
+        "answers": {
+          "pension": "ไม่ได้รับ",
+          "sss_months": "เกิน 3 เดือน",
+          "sss_section": "ม.33 (พนักงานบริษัท)"
+        }
+      },
+      {
+        "answers": {
+          "pension": "ไม่ได้รับ"
+        }
+      },
+      {
+        "answers": {}
+      }
+    ],
+    "expect": {
+      "finalRoute": "cards",
+      "cardTypesInclude": [
+        "evidence",
+        "next_steps"
+      ],
+      "slotsEqual": {
+        "age": 36,
+        "area": "บางนา",
+        "scheme": "CSMBS"
+      },
+      "citationsRequired": true,
+      "maxQuestions": 4,
+      "mustNotMatch": [
+        "โหมดสาธิต",
+        "วินิจฉัยว่า(คุณ|ผู้ป่วย)เป็น",
+        "(กิน|ทาน)[^\"]{0,20}วันละ \\d+ เม็ด"
+      ]
+    }
+  },
+  {
+    "id": "matrix-wound-family",
+    "category": "matrix",
+    "turns": [
+      {
+        "user": "แม่โดนน้ำร้อนลวกที่มือ แดงแต่ไม่พอง อายุ 65 อยู่ลาดพร้าว มีประกันสังคม ม.33"
+      },
+      {
+        "answers": {
+          "pension": "ไม่ได้รับ",
+          "sss_months": "เกิน 3 เดือน",
+          "sss_section": "ม.33 (พนักงานบริษัท)"
+        }
+      },
+      {
+        "answers": {
+          "pension": "ไม่ได้รับ"
+        }
+      },
+      {
+        "answers": {}
+      }
+    ],
+    "expect": {
+      "finalRoute": "cards",
+      "cardTypesInclude": [
+        "evidence",
+        "next_steps"
+      ],
+      "slotsEqual": {
+        "age": 65,
+        "scheme": "SSS"
+      },
+      "citationsRequired": true,
+      "maxQuestions": 4,
+      "mustNotMatch": [
+        "โหมดสาธิต",
+        "วินิจฉัยว่า(คุณ|ผู้ป่วย)เป็น"
+      ]
+    }
+  },
+  {
+    "id": "matrix-rash-self",
+    "category": "matrix",
+    "turns": [
+      {
+        "user": "อายุ 37 มีผื่นคันขึ้นที่แขนสองข้าง อยู่ลาดพร้าว ไม่แน่ใจว่ามีสิทธิอะไร"
+      },
+      {
+        "answers": {
+          "scheme": "ไม่แน่ใจ",
+          "coverage_basis": "อาชีพอิสระ/ไม่ได้ส่งประกันสังคม/ไม่มีสิทธิอื่น",
+          "pension": "ไม่แน่ใจ",
+          "sss_months": "ไม่แน่ใจ",
+          "sss_section": "ไม่แน่ใจ"
+        }
+      },
+      {
+        "answers": {
+          "pension": "ไม่ได้รับ"
+        }
+      },
+      {
+        "answers": {}
+      }
+    ],
+    "expect": {
+      "finalRoute": "cards",
+      "cardTypesInclude": [
+        "evidence",
+        "next_steps"
+      ],
+      "slotsEqual": {
+        "age": 37,
+        "area": "ลาดพร้าว",
+        "scheme": "UCS"
+      },
+      "citationsRequired": true,
+      "maxQuestions": 4,
+      "mustNotMatch": [
+        "โหมดสาธิต",
+        "วินิจฉัยว่า(คุณ|ผู้ป่วย)เป็น",
+        "(กิน|ทาน)[^\"]{0,20}วันละ \\d+ เม็ด"
+      ]
+    },
+    "note": "ไม่รู้สิทธิ์ → อนุมานจากอาชีพอิสระเป็น UCS + ให้ยืนยัน"
+  },
+  {
+    "id": "matrix-rash-family",
+    "category": "matrix",
+    "turns": [
+      {
+        "user": "พ่อมีผื่นแดงคันที่หลัง อายุ 66 อยู่ห้วยขวาง ใช้สิทธิข้าราชการ"
+      },
+      {
+        "answers": {
+          "pension": "ไม่ได้รับ",
+          "sss_months": "เกิน 3 เดือน",
+          "sss_section": "ม.33 (พนักงานบริษัท)"
+        }
+      },
+      {
+        "answers": {
+          "pension": "ไม่ได้รับ"
+        }
+      },
+      {
+        "answers": {}
+      }
+    ],
+    "expect": {
+      "finalRoute": "cards",
+      "cardTypesInclude": [
+        "evidence",
+        "next_steps"
+      ],
+      "slotsEqual": {
+        "age": 66,
+        "scheme": "CSMBS"
+      },
+      "citationsRequired": true,
+      "maxQuestions": 4,
+      "mustNotMatch": [
+        "โหมดสาธิต",
+        "วินิจฉัยว่า(คุณ|ผู้ป่วย)เป็น"
+      ]
+    }
+  },
+  {
+    "id": "matrix-eye-self",
+    "category": "matrix",
+    "turns": [
+      {
+        "user": "อายุ 38 ตาแดงข้างซ้าย เคืองตา มีขี้ตา อยู่ห้วยขวาง ใช้บัตรทอง"
+      },
+      {
+        "answers": {
+          "pension": "ไม่ได้รับ",
+          "sss_months": "เกิน 3 เดือน",
+          "sss_section": "ม.33 (พนักงานบริษัท)"
+        }
+      },
+      {
+        "answers": {
+          "pension": "ไม่ได้รับ"
+        }
+      },
+      {
+        "answers": {}
+      }
+    ],
+    "expect": {
+      "finalRoute": "cards",
+      "cardTypesInclude": [
+        "evidence",
+        "next_steps"
+      ],
+      "slotsEqual": {
+        "age": 38,
+        "area": "ห้วยขวาง",
+        "scheme": "UCS"
+      },
+      "citationsRequired": true,
+      "maxQuestions": 4,
+      "mustNotMatch": [
+        "โหมดสาธิต",
+        "วินิจฉัยว่า(คุณ|ผู้ป่วย)เป็น",
+        "(กิน|ทาน)[^\"]{0,20}วันละ \\d+ เม็ด"
+      ]
+    }
+  },
+  {
+    "id": "matrix-eye-family",
+    "category": "matrix",
+    "turns": [
+      {
+        "user": "แม่บ่นตาพร่ามัวมากขึ้น อายุ 67 อยู่บางนา ใช้บัตรทอง"
+      },
+      {
+        "answers": {
+          "pension": "ไม่ได้รับ",
+          "sss_months": "เกิน 3 เดือน",
+          "sss_section": "ม.33 (พนักงานบริษัท)"
+        }
+      },
+      {
+        "answers": {
+          "pension": "ไม่ได้รับ"
+        }
+      },
+      {
+        "answers": {}
+      }
+    ],
+    "expect": {
+      "finalRoute": "cards",
+      "cardTypesInclude": [
+        "evidence",
+        "next_steps"
+      ],
+      "slotsEqual": {
+        "age": 67,
+        "scheme": "UCS"
+      },
+      "citationsRequired": true,
+      "maxQuestions": 4,
+      "mustNotMatch": [
+        "โหมดสาธิต",
+        "วินิจฉัยว่า(คุณ|ผู้ป่วย)เป็น"
+      ]
+    }
+  },
+  {
+    "id": "matrix-chronic-self",
+    "category": "matrix",
+    "turns": [
+      {
+        "user": "อายุ 39 เป็นเบาหวาน ช่วงนี้เพลียและปัสสาวะบ่อย อยู่บางนา มีประกันสังคม ม.33"
+      },
+      {
+        "answers": {
+          "pension": "ไม่ได้รับ",
+          "sss_months": "เกิน 3 เดือน",
+          "sss_section": "ม.33 (พนักงานบริษัท)"
+        }
+      },
+      {
+        "answers": {
+          "pension": "ไม่ได้รับ"
+        }
+      },
+      {
+        "answers": {}
+      }
+    ],
+    "expect": {
+      "finalRoute": "cards",
+      "cardTypesInclude": [
+        "evidence",
+        "next_steps"
+      ],
+      "slotsEqual": {
+        "age": 39,
+        "area": "บางนา",
+        "scheme": "SSS"
+      },
+      "citationsRequired": true,
+      "maxQuestions": 4,
+      "mustNotMatch": [
+        "โหมดสาธิต",
+        "วินิจฉัยว่า(คุณ|ผู้ป่วย)เป็น",
+        "(กิน|ทาน)[^\"]{0,20}วันละ \\d+ เม็ด"
+      ]
+    }
+  },
+  {
+    "id": "matrix-chronic-family",
+    "category": "matrix",
+    "turns": [
+      {
+        "user": "แม่ความดันสูง เวียนหัวเพลีย ๆ อายุ 68 อยู่เชียงใหม่ มีประกันสังคม ม.33"
+      },
+      {
+        "answers": {
+          "pension": "ไม่ได้รับ",
+          "sss_months": "เกิน 3 เดือน",
+          "sss_section": "ม.33 (พนักงานบริษัท)"
+        }
+      },
+      {
+        "answers": {
+          "pension": "ไม่ได้รับ"
+        }
+      },
+      {
+        "answers": {}
+      }
+    ],
+    "expect": {
+      "finalRoute": "cards",
+      "cardTypesInclude": [
+        "evidence",
+        "next_steps"
+      ],
+      "slotsEqual": {
+        "age": 68,
+        "scheme": "SSS"
+      },
+      "citationsRequired": true,
+      "maxQuestions": 4,
+      "mustNotMatch": [
+        "โหมดสาธิต",
+        "วินิจฉัยว่า(คุณ|ผู้ป่วย)เป็น"
+      ],
+      "mustMatch": [
+        "1330"
+      ]
+    },
+    "note": "อยู่จังหวัดไกล → facility แจ้งขอบเขต + 1330"
+  },
+  {
+    "id": "matrix-respiratory-self",
+    "category": "matrix",
+    "turns": [
+      {
+        "user": "อายุ 40 ไอแห้ง ๆ มาเกือบสามอาทิตย์ไม่หาย อยู่ลาดพร้าว ใช้สิทธิข้าราชการ"
+      },
+      {
+        "answers": {
+          "pension": "ไม่ได้รับ",
+          "sss_months": "เกิน 3 เดือน",
+          "sss_section": "ม.33 (พนักงานบริษัท)"
+        }
+      },
+      {
+        "answers": {
+          "pension": "ไม่ได้รับ"
+        }
+      },
+      {
+        "answers": {}
+      }
+    ],
+    "expect": {
+      "finalRoute": "cards",
+      "cardTypesInclude": [
+        "evidence",
+        "next_steps"
+      ],
+      "slotsEqual": {
+        "age": 40,
+        "area": "ลาดพร้าว",
+        "scheme": "CSMBS"
+      },
+      "citationsRequired": true,
+      "maxQuestions": 4,
+      "mustNotMatch": [
+        "โหมดสาธิต",
+        "วินิจฉัยว่า(คุณ|ผู้ป่วย)เป็น",
+        "(กิน|ทาน)[^\"]{0,20}วันละ \\d+ เม็ด"
+      ]
+    }
+  },
+  {
+    "id": "matrix-respiratory-family",
+    "category": "matrix",
+    "turns": [
+      {
+        "user": "พ่อไอเรื้อรังมีเสมหะตอนเช้า อายุ 69 อยู่ห้วยขวาง ใช้สิทธิข้าราชการ"
+      },
+      {
+        "answers": {
+          "pension": "ไม่ได้รับ",
+          "sss_months": "เกิน 3 เดือน",
+          "sss_section": "ม.33 (พนักงานบริษัท)"
+        }
+      },
+      {
+        "answers": {
+          "pension": "ไม่ได้รับ"
+        }
+      },
+      {
+        "answers": {}
+      }
+    ],
+    "expect": {
+      "finalRoute": "cards",
+      "cardTypesInclude": [
+        "evidence",
+        "next_steps"
+      ],
+      "slotsEqual": {
+        "age": 69,
+        "scheme": "CSMBS"
+      },
+      "citationsRequired": true,
+      "maxQuestions": 4,
+      "mustNotMatch": [
+        "โหมดสาธิต",
+        "วินิจฉัยว่า(คุณ|ผู้ป่วย)เป็น"
+      ]
+    }
+  },
+  {
+    "id": "matrix-neuro_mild-self",
+    "category": "matrix",
+    "turns": [
+      {
+        "user": "อายุ 41 ชาปลายนิ้วมือสองข้างเป็น ๆ หาย ๆ อยู่ห้วยขวาง ไม่แน่ใจว่ามีสิทธิอะไร"
+      },
+      {
+        "answers": {
+          "scheme": "ไม่แน่ใจ",
+          "coverage_basis": "อาชีพอิสระ/ไม่ได้ส่งประกันสังคม/ไม่มีสิทธิอื่น",
+          "pension": "ไม่แน่ใจ",
+          "sss_months": "ไม่แน่ใจ",
+          "sss_section": "ไม่แน่ใจ"
+        }
+      },
+      {
+        "answers": {
+          "pension": "ไม่ได้รับ"
+        }
+      },
+      {
+        "answers": {}
+      }
+    ],
+    "expect": {
+      "finalRoute": "cards",
+      "cardTypesInclude": [
+        "evidence",
+        "next_steps"
+      ],
+      "slotsEqual": {
+        "age": 41,
+        "area": "ห้วยขวาง",
+        "scheme": "UCS"
+      },
+      "citationsRequired": true,
+      "maxQuestions": 4,
+      "mustNotMatch": [
+        "โหมดสาธิต",
+        "วินิจฉัยว่า(คุณ|ผู้ป่วย)เป็น",
+        "(กิน|ทาน)[^\"]{0,20}วันละ \\d+ เม็ด"
+      ]
+    },
+    "note": "ไม่รู้สิทธิ์ → อนุมานจากอาชีพอิสระเป็น UCS + ให้ยืนยัน"
+  },
+  {
+    "id": "matrix-neuro_mild-family",
+    "category": "matrix",
+    "turns": [
+      {
+        "user": "แม่มือสั่นเล็กน้อยเวลาหยิบของ อายุ 70 อยู่บางนา ใช้บัตรทอง"
+      },
+      {
+        "answers": {
+          "pension": "ไม่ได้รับ",
+          "sss_months": "เกิน 3 เดือน",
+          "sss_section": "ม.33 (พนักงานบริษัท)"
+        }
+      },
+      {
+        "answers": {
+          "pension": "ไม่ได้รับ"
+        }
+      },
+      {
+        "answers": {}
+      }
+    ],
+    "expect": {
+      "finalRoute": "cards",
+      "cardTypesInclude": [
+        "evidence",
+        "next_steps"
+      ],
+      "slotsEqual": {
+        "age": 70,
+        "scheme": "UCS"
+      },
+      "citationsRequired": true,
+      "maxQuestions": 4,
+      "mustNotMatch": [
+        "โหมดสาธิต",
+        "วินิจฉัยว่า(คุณ|ผู้ป่วย)เป็น"
+      ]
+    }
+  },
+  {
+    "id": "matrix-far-rights-1",
+    "category": "matrix",
+    "turns": [
+      {
+        "user": "อายุ 26 มีไข้ต่ำ ๆ เจ็บคอ คัดจมูกมาสองวัน ตอนนี้อยู่บางนา แต่สิทธิบัตรทองอยู่ต่างจังหวัดที่ขอนแก่น"
+      },
+      {
+        "answers": {
+          "pension": "ไม่แน่ใจ"
+        }
+      },
+      {
+        "answers": {}
+      }
+    ],
+    "expect": {
+      "finalRoute": "cards",
+      "slotsEqual": {
+        "age": 26,
+        "scheme": "UCS",
+        "area": "บางนา"
+      },
+      "citationsRequired": true,
+      "maxQuestions": 4,
+      "mustMatch": [
+        "30 บาทรักษาทุกที่"
+      ],
+      "mustNotMatch": [
+        "โหมดสาธิต"
+      ]
+    },
+    "note": "สิทธิ์ต่างจังหวัดใน กทม. → ต้องได้ 30 บาทรักษาทุกที่ + citation (acceptance #10)"
+  },
+  {
+    "id": "matrix-far-rights-2",
+    "category": "matrix",
+    "turns": [
+      {
+        "user": "อายุ 27 เวียนหัวเวลาลุกเร็ว ๆ มาหลายวัน ตอนนี้อยู่ลาดพร้าว แต่สิทธิบัตรทองอยู่ต่างจังหวัดที่บุรีรัมย์"
+      },
+      {
+        "answers": {
+          "pension": "ไม่แน่ใจ"
+        }
+      },
+      {
+        "answers": {}
+      }
+    ],
+    "expect": {
+      "finalRoute": "cards",
+      "slotsEqual": {
+        "age": 27,
+        "scheme": "UCS",
+        "area": "ลาดพร้าว"
+      },
+      "citationsRequired": true,
+      "maxQuestions": 4,
+      "mustMatch": [
+        "30 บาทรักษาทุกที่"
+      ],
+      "mustNotMatch": [
+        "โหมดสาธิต"
+      ]
+    },
+    "note": "สิทธิ์ต่างจังหวัดใน กทม. → ต้องได้ 30 บาทรักษาทุกที่ + citation (acceptance #10)"
+  },
+  {
+    "id": "matrix-far-rights-3",
+    "category": "matrix",
+    "turns": [
+      {
+        "user": "อายุ 28 ปวดฟันกรามล่างขวา เสียวเวลาเคี้ยว ตอนนี้อยู่ห้วยขวาง แต่สิทธิบัตรทองอยู่ต่างจังหวัดที่อุดรธานี"
+      },
+      {
+        "answers": {
+          "pension": "ไม่แน่ใจ"
+        }
+      },
+      {
+        "answers": {}
+      }
+    ],
+    "expect": {
+      "finalRoute": "cards",
+      "slotsEqual": {
+        "age": 28,
+        "scheme": "UCS",
+        "area": "ห้วยขวาง"
+      },
+      "citationsRequired": true,
+      "maxQuestions": 4,
+      "mustMatch": [
+        "30 บาทรักษาทุกที่"
+      ],
+      "mustNotMatch": [
+        "โหมดสาธิต"
+      ]
+    },
+    "note": "สิทธิ์ต่างจังหวัดใน กทม. → ต้องได้ 30 บาทรักษาทุกที่ + citation (acceptance #10)"
+  },
+  {
+    "id": "matrix-far-rights-4",
+    "category": "matrix",
+    "turns": [
+      {
+        "user": "อายุ 29 มีดบาดนิ้วตอนทำกับข้าว แผลไม่ลึกแต่ยังแสบ ตอนนี้อยู่บางนา แต่สิทธิบัตรทองอยู่ต่างจังหวัดที่เชียงใหม่"
+      },
+      {
+        "answers": {
+          "pension": "ไม่แน่ใจ"
+        }
+      },
+      {
+        "answers": {}
+      }
+    ],
+    "expect": {
+      "finalRoute": "cards",
+      "slotsEqual": {
+        "age": 29,
+        "scheme": "UCS",
+        "area": "บางนา"
+      },
+      "citationsRequired": true,
+      "maxQuestions": 4,
+      "mustMatch": [
+        "30 บาทรักษาทุกที่"
+      ],
+      "mustNotMatch": [
+        "โหมดสาธิต"
+      ]
+    },
+    "note": "สิทธิ์ต่างจังหวัดใน กทม. → ต้องได้ 30 บาทรักษาทุกที่ + citation (acceptance #10)"
+  },
+  {
+    "id": "matrix-far-rights-5",
+    "category": "matrix",
+    "turns": [
+      {
+        "user": "อายุ 30 ตาแดงข้างซ้าย เคืองตา มีขี้ตา ตอนนี้อยู่ลาดพร้าว แต่สิทธิบัตรทองอยู่ต่างจังหวัดที่นครศรีธรรมราช"
+      },
+      {
+        "answers": {
+          "pension": "ไม่แน่ใจ"
+        }
+      },
+      {
+        "answers": {}
+      }
+    ],
+    "expect": {
+      "finalRoute": "cards",
+      "slotsEqual": {
+        "age": 30,
+        "scheme": "UCS",
+        "area": "ลาดพร้าว"
+      },
+      "citationsRequired": true,
+      "maxQuestions": 4,
+      "mustMatch": [
+        "30 บาทรักษาทุกที่"
+      ],
+      "mustNotMatch": [
+        "โหมดสาธิต"
+      ]
+    },
+    "note": "สิทธิ์ต่างจังหวัดใน กทม. → ต้องได้ 30 บาทรักษาทุกที่ + citation (acceptance #10)"
+  },
+  {
+    "id": "matrix-far-rights-6",
+    "category": "matrix",
+    "turns": [
+      {
+        "user": "อายุ 31 ไอแห้ง ๆ มาเกือบสามอาทิตย์ไม่หาย ตอนนี้อยู่ห้วยขวาง แต่สิทธิบัตรทองอยู่ต่างจังหวัดที่ร้อยเอ็ด"
+      },
+      {
+        "answers": {
+          "pension": "ไม่แน่ใจ"
+        }
+      },
+      {
+        "answers": {}
+      }
+    ],
+    "expect": {
+      "finalRoute": "cards",
+      "slotsEqual": {
+        "age": 31,
+        "scheme": "UCS",
+        "area": "ห้วยขวาง"
+      },
+      "citationsRequired": true,
+      "maxQuestions": 4,
+      "mustMatch": [
+        "30 บาทรักษาทุกที่"
+      ],
+      "mustNotMatch": [
+        "โหมดสาธิต"
+      ]
+    },
+    "note": "สิทธิ์ต่างจังหวัดใน กทม. → ต้องได้ 30 บาทรักษาทุกที่ + citation (acceptance #10)"
+  },
+  {
+    "id": "matrix-unknown-scheme-4",
+    "category": "matrix",
+    "turns": [
+      {
+        "user": "อายุ 52 เวียนหัวเวลาลุกเร็ว ๆ อยู่บางนา ไม่รู้ว่าตัวเองมีสิทธิรักษาอะไร"
+      },
+      {
+        "answers": {
+          "scheme": "ไม่แน่ใจ",
+          "coverage_basis": "พนักงานบริษัท/มีนายจ้างหักประกันสังคม",
+          "sss_section": "ม.33 (พนักงานบริษัท)",
+          "sss_months": "เกิน 3 เดือน",
+          "pension": "ไม่แน่ใจ"
+        }
+      },
+      {
+        "answers": {}
+      }
+    ],
+    "expect": {
+      "finalRoute": "cards",
+      "slotsEqual": {
+        "age": 52,
+        "scheme": "SSS",
+        "area": "บางนา"
+      },
+      "citationsRequired": true,
+      "maxQuestions": 4,
+      "mustMatch": [
+        "ตรวจสอบสิทธิ์"
+      ],
+      "mustNotMatch": [
+        "โหมดสาธิต"
+      ]
+    },
+    "note": "ไม่รู้สิทธิ์ → อนุมานจากงานบริษัทเป็น SSS + ต้องมี step ให้ยืนยันสิทธิ์"
+  },
+  {
+    "id": "matrix-child-3",
+    "category": "matrix",
+    "turns": [
+      {
+        "user": "ลูกชายอายุ 10 ขวบ ปวดท้องตั้งแต่เมื่อวาน ไม่มีไข้ ยังวิ่งเล่นได้ อยู่ลาดพร้าว ใช้บัตรทอง"
+      },
+      {
+        "answers": {
+          "pension": "ไม่แน่ใจ"
+        }
+      },
+      {
+        "answers": {}
+      }
+    ],
+    "expect": {
+      "finalRoute": "cards",
+      "slotsEqual": {
+        "age": 10,
+        "scheme": "UCS",
+        "area": "ลาดพร้าว"
+      },
+      "citationsRequired": true,
+      "maxQuestions": 4,
+      "mustNotMatch": [
+        "ซื้อยา(กินเอง|เอง)",
+        "โหมดสาธิต"
+      ]
+    },
+    "note": "เด็ก <15 เพิ่มเติมตามโควตา ≥3"
+  },
+  {
+    "id": "matrix-fever-sss-huaikhwang",
+    "category": "matrix",
+    "turns": [
+      {
+        "user": "อายุ 29 มีไข้ต่ำ ๆ เจ็บคอมาสองวัน อยู่ห้วยขวาง มีประกันสังคม ม.33"
+      },
+      {
+        "answers": {
+          "pension": "ไม่ได้รับ",
+          "sss_months": "เกิน 3 เดือน",
+          "sss_section": "ม.33 (พนักงานบริษัท)"
+        }
+      },
+      {
+        "answers": {
+          "pension": "ไม่ได้รับ"
+        }
+      },
+      {
+        "answers": {}
+      }
+    ],
+    "expect": {
+      "finalRoute": "cards",
+      "cardTypesInclude": [
+        "evidence",
+        "next_steps"
+      ],
+      "slotsEqual": {
+        "age": 29,
+        "scheme": "SSS",
+        "area": "ห้วยขวาง"
+      },
+      "citationsRequired": true,
+      "maxQuestions": 4,
+      "mustNotMatch": [
+        "โหมดสาธิต",
+        "วินิจฉัยว่า(คุณ|ผู้ป่วย)เป็น"
+      ]
+    }
+  },
+  {
+    "id": "matrix-headache-csmbs-bangna",
+    "category": "matrix",
+    "turns": [
+      {
+        "user": "อายุ 41 ปวดหัวตุบ ๆ เป็นพัก ๆ อยู่บางนา ใช้สิทธิข้าราชการ"
+      },
+      {
+        "answers": {
+          "pension": "ไม่ได้รับ",
+          "sss_months": "เกิน 3 เดือน",
+          "sss_section": "ม.33 (พนักงานบริษัท)"
+        }
+      },
+      {
+        "answers": {
+          "pension": "ไม่ได้รับ"
+        }
+      },
+      {
+        "answers": {}
+      }
+    ],
+    "expect": {
+      "finalRoute": "cards",
+      "cardTypesInclude": [
+        "evidence",
+        "next_steps"
+      ],
+      "slotsEqual": {
+        "age": 41,
+        "scheme": "CSMBS",
+        "area": "บางนา"
+      },
+      "citationsRequired": true,
+      "maxQuestions": 4,
+      "mustNotMatch": [
+        "โหมดสาธิต",
+        "วินิจฉัยว่า(คุณ|ผู้ป่วย)เป็น"
+      ]
+    }
+  },
+  {
+    "id": "matrix-gi-ucs-ladprao",
+    "category": "matrix",
+    "turns": [
+      {
+        "user": "อายุ 36 ปวดท้องท้องเสียเมื่อคืน ถ่ายเหลวหลายรอบ อยู่ลาดพร้าว ใช้บัตรทอง"
+      },
+      {
+        "answers": {
+          "pension": "ไม่ได้รับ",
+          "sss_months": "เกิน 3 เดือน",
+          "sss_section": "ม.33 (พนักงานบริษัท)"
+        }
+      },
+      {
+        "answers": {
+          "pension": "ไม่ได้รับ"
+        }
+      },
+      {
+        "answers": {}
+      }
+    ],
+    "expect": {
+      "finalRoute": "cards",
+      "cardTypesInclude": [
+        "evidence",
+        "next_steps"
+      ],
+      "slotsEqual": {
+        "age": 36,
+        "scheme": "UCS",
+        "area": "ลาดพร้าว"
+      },
+      "citationsRequired": true,
+      "maxQuestions": 4,
+      "mustNotMatch": [
+        "โหมดสาธิต",
+        "วินิจฉัยว่า(คุณ|ผู้ป่วย)เป็น"
+      ]
+    }
+  },
+  {
+    "id": "matrix-dental-sss-bangna",
+    "category": "matrix",
+    "turns": [
+      {
+        "user": "อายุ 31 ปวดฟันกราม เสียวฟันเวลาเคี้ยว อยู่บางนา ประกันสังคม ม.33"
+      },
+      {
+        "answers": {
+          "pension": "ไม่ได้รับ",
+          "sss_months": "เกิน 3 เดือน",
+          "sss_section": "ม.33 (พนักงานบริษัท)"
+        }
+      },
+      {
+        "answers": {
+          "pension": "ไม่ได้รับ"
+        }
+      },
+      {
+        "answers": {}
+      }
+    ],
+    "expect": {
+      "finalRoute": "cards",
+      "cardTypesInclude": [
+        "evidence",
+        "next_steps"
+      ],
+      "slotsEqual": {
+        "age": 31,
+        "scheme": "SSS",
+        "area": "บางนา"
+      },
+      "citationsRequired": true,
+      "maxQuestions": 4,
+      "mustNotMatch": [
+        "โหมดสาธิต",
+        "วินิจฉัยว่า(คุณ|ผู้ป่วย)เป็น"
+      ],
+      "mustMatch": [
+        "ทันตกรรม|ทำฟัน"
+      ]
+    }
+  },
+  {
+    "id": "matrix-eye-elder-family",
+    "category": "matrix",
+    "turns": [
+      {
+        "user": "พาแม่มาปรึกษา แม่อายุ 68 ตาพร่ามัวมากขึ้น เป็นเบาหวานด้วย อยู่ห้วยขวาง ใช้บัตรทอง"
+      },
+      {
+        "answers": {
+          "pension": "ไม่ได้รับ",
+          "sss_months": "เกิน 3 เดือน",
+          "sss_section": "ม.33 (พนักงานบริษัท)"
+        }
+      },
+      {
+        "answers": {
+          "pension": "ไม่ได้รับ"
+        }
+      },
+      {
+        "answers": {}
+      }
+    ],
+    "expect": {
+      "finalRoute": "cards",
+      "cardTypesInclude": [
+        "evidence",
+        "next_steps"
+      ],
+      "slotsEqual": {
+        "age": 68,
+        "scheme": "UCS",
+        "area": "ห้วยขวาง"
+      },
+      "citationsRequired": true,
+      "maxQuestions": 4,
+      "mustNotMatch": [
+        "โหมดสาธิต",
+        "วินิจฉัยว่า(คุณ|ผู้ป่วย)เป็น"
+      ]
+    }
+  },
+  {
+    "id": "matrix-musculo-rider",
+    "category": "matrix",
+    "turns": [
+      {
+        "user": "อายุ 27 เป็นไรเดอร์ ปวดหลังล่างจากขับรถทั้งวัน อยู่บางนา บัตรทองอยู่ต่างจังหวัดที่สุรินทร์"
+      },
+      {
+        "answers": {
+          "pension": "ไม่แน่ใจ"
+        }
+      },
+      {
+        "answers": {
+          "pension": "ไม่ได้รับ"
+        }
+      },
+      {
+        "answers": {}
+      }
+    ],
+    "expect": {
+      "finalRoute": "cards",
+      "cardTypesInclude": [
+        "evidence",
+        "next_steps"
+      ],
+      "slotsEqual": {
+        "age": 27,
+        "scheme": "UCS",
+        "area": "บางนา"
+      },
+      "citationsRequired": true,
+      "maxQuestions": 4,
+      "mustNotMatch": [
+        "โหมดสาธิต",
+        "วินิจฉัยว่า(คุณ|ผู้ป่วย)เป็น"
+      ],
+      "mustMatch": [
+        "30 บาทรักษาทุกที่"
+      ]
+    },
+    "note": "สิทธิ์ต่างจังหวัด — ไรเดอร์"
+  },
+  {
+    "id": "matrix-respiratory-far",
+    "category": "matrix",
+    "turns": [
+      {
+        "user": "อายุ 33 ไอเรื้อรังสามอาทิตย์ อยู่บางนา สิทธิบัตรทองอยู่ที่นครราชสีมา"
+      },
+      {
+        "answers": {
+          "pension": "ไม่แน่ใจ"
+        }
+      },
+      {
+        "answers": {
+          "pension": "ไม่ได้รับ"
+        }
+      },
+      {
+        "answers": {}
+      }
+    ],
+    "expect": {
+      "finalRoute": "cards",
+      "cardTypesInclude": [
+        "evidence",
+        "next_steps"
+      ],
+      "slotsEqual": {
+        "age": 33,
+        "scheme": "UCS",
+        "area": "บางนา"
+      },
+      "citationsRequired": true,
+      "maxQuestions": 4,
+      "mustNotMatch": [
+        "โหมดสาธิต",
+        "วินิจฉัยว่า(คุณ|ผู้ป่วย)เป็น"
+      ],
+      "mustMatch": [
+        "30 บาทรักษาทุกที่"
+      ]
+    },
+    "note": "สิทธิ์ต่างจังหวัด"
+  },
+  {
+    "id": "matrix-chronic-unknown",
+    "category": "matrix",
+    "turns": [
+      {
+        "user": "อายุ 47 เป็นความดัน ช่วงนี้เพลียและเวียนหัวเบา ๆ อยู่ลาดพร้าว ไม่แน่ใจว่ามีสิทธิอะไร"
+      },
+      {
+        "answers": {
+          "scheme": "ไม่แน่ใจ",
+          "coverage_basis": "อาชีพอิสระ/ไม่ได้ส่งประกันสังคม/ไม่มีสิทธิอื่น",
+          "pension": "ไม่แน่ใจ"
+        }
+      },
+      {
+        "answers": {
+          "pension": "ไม่ได้รับ"
+        }
+      },
+      {
+        "answers": {}
+      }
+    ],
+    "expect": {
+      "finalRoute": "cards",
+      "cardTypesInclude": [
+        "evidence",
+        "next_steps"
+      ],
+      "slotsEqual": {
+        "age": 47,
+        "scheme": "UCS",
+        "area": "ลาดพร้าว"
+      },
+      "citationsRequired": true,
+      "maxQuestions": 4,
+      "mustNotMatch": [
+        "โหมดสาธิต",
+        "วินิจฉัยว่า(คุณ|ผู้ป่วย)เป็น"
+      ]
+    },
+    "note": "ไม่รู้สิทธิ์ → UCS จากอาชีพอิสระ"
+  }
+]

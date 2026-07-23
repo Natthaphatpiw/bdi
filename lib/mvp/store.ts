@@ -42,6 +42,9 @@ export interface MvpStoreOptions {
   /** Demo writes are opportunistic: configured deployments get TTL-backed
    * cold-start recovery, while an offline booth remains fully in-memory. */
   persistDemo?: boolean;
+  /** Injectable clock — expiry checks must share the service's clock, or a
+   * test pinning `now` in the past sees its freshly created case as expired. */
+  now?: () => Date;
 }
 
 export interface AuditEntry {
@@ -108,10 +111,12 @@ export class MvpStore {
   private readonly state = memory();
   private readonly clientFactory: () => Promise<SupabaseClient | null>;
   private readonly persistDemo: boolean;
+  private readonly now: () => Date;
 
   constructor(options: MvpStoreOptions = {}) {
     this.clientFactory = options.clientFactory ?? configuredClient;
     this.persistDemo = options.persistDemo ?? true;
+    this.now = options.now ?? (() => new Date());
   }
 
   async saveCase(record: MvpCaseRecord, ownerUserId?: string | null): Promise<MvpCaseRecord> {
@@ -139,7 +144,7 @@ export class MvpStore {
     if (!record) record = await this.hydrateCase(id) ?? undefined;
     if (!record) return null;
     this.assertAccess(id, access);
-    if (record.expiresAt && Date.parse(record.expiresAt) <= Date.now()) {
+    if (record.expiresAt && Date.parse(record.expiresAt) <= this.now().getTime()) {
       await this.deleteCase(id);
       return null;
     }
@@ -213,7 +218,7 @@ export class MvpStore {
     const boundedHours = Math.min(72, Math.max(1, Math.floor(expiresInHours || 72)));
     const token = randomBytes(32).toString("base64url");
     const tokenHash = sha256(token);
-    const expiresAt = new Date(Date.now() + boundedHours * 3_600_000).toISOString();
+    const expiresAt = new Date(this.now().getTime() + boundedHours * 3_600_000).toISOString();
     const record = await this.getCase(passport.caseId);
     if (!record) throw new Error("PASSPORT_CASE_NOT_FOUND");
     if (record.demoSessionId) {
@@ -229,7 +234,7 @@ export class MvpStore {
     const tokenHash = sha256(token);
     let share = this.state.shares.get(tokenHash);
     if (!share) share = await this.hydrateShare(tokenHash) ?? undefined;
-    if (!share || share.revokedAt || Date.parse(share.expiresAt) <= Date.now()) return null;
+    if (!share || share.revokedAt || Date.parse(share.expiresAt) <= this.now().getTime()) return null;
     const passport = await this.getPassport(share.passportId);
     if (!passport || passport.revokedAt) return null;
     return passport;

@@ -137,6 +137,8 @@ export interface Understood {
   scheme?: Scheme;
   area?: string;
   area_code?: string;
+  /** จังหวัดที่สิทธิ์ลงทะเบียน (เคสสิทธิ์ต่างจังหวัด/ประชากรแฝง) */
+  scheme_registered_province?: string;
   symptoms?: string[];
   symptom_ids?: string[];
   condition_hint?: string;

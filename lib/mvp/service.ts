@@ -101,7 +101,9 @@ export class MvpService {
   private readonly now: () => Date;
 
   constructor(dependencies: MvpServiceDependencies = {}) {
-    this.store = dependencies.store ?? new MvpStore();
+    // store ที่สร้างเองต้องใช้นาฬิกาเดียวกับ service — มิฉะนั้น test ที่ปัก `now`
+    // ในอดีตจะเห็นเคสที่เพิ่งสร้าง "หมดอายุ" ทันทีเมื่อเวลาจริงเดินเลย TTL
+    this.store = dependencies.store ?? new MvpStore({ now: dependencies.now });
     this.model = dependencies.modelProvider ?? createModelProvider();
     this.knowledge = dependencies.knowledgeProvider ?? createKnowledgeProvider();
     // Known booth scenarios are precomputed against the validated repository

@@ -5,6 +5,7 @@ import { transcribeAudio } from "@/lib/gemini";
 import { runTurnStream, type TurnContext, type TurnResult } from "@/lib/orchestrator";
 import type { Profile, TurnRequest, TurnResponse, Understood } from "@/lib/types";
 import { containsThaiNationalId, publicUnderstood } from "@/lib/sanitize";
+import { NATIONAL_ID_COPY } from "@/lib/boundary";
 import { allowRequest } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
@@ -78,7 +79,8 @@ export async function POST(req: NextRequest) {
 
   if (!text.trim()) return ERR.badRequest("ไม่มีข้อความสำหรับประมวลผล");
   if (text.length > 4_000) return ERR.badRequest("ข้อความยาวเกินไป กรุณาสรุปไม่เกิน 4,000 ตัวอักษร");
-  if (containsThaiNationalId(text)) return ERR.badRequest("กรุณาลบเลขบัตรประชาชน 13 หลักออกก่อนส่ง ระบบไม่รับหรือจัดเก็บข้อมูลส่วนนี้");
+  // PDPA — ไม่รับ ไม่เก็บ ไม่ทวนซ้ำ (copy §7)
+  if (containsThaiNationalId(text)) return ERR.badRequest(NATIONAL_ID_COPY);
 
   const ctx: TurnContext = {
     text,

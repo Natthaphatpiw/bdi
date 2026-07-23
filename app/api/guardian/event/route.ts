@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { ok, ERR, requireUser } from "@/lib/http";
 import { userClient } from "@/lib/supabase/server";
 import { allowRequest } from "@/lib/rateLimit";
+import { env } from "@/lib/env";
 import { DISMISS_COOLDOWN_HOURS } from "@/lib/guardian/config";
 
 export const runtime = "nodejs";
@@ -52,18 +53,24 @@ export async function POST(req: NextRequest) {
     // Guardrail §9.5 — cooldown 24 ชม. หลัง "ฉันสบายดี" บังคับฝั่ง server:
     // ถ้ามี dismissed ภายในช่วง cooldown → บันทึก signal ไว้เป็น telemetry
     // แต่ตอบ suppressed ให้ client เงียบ
-    const cooldownSince = new Date(
-      Date.now() - DISMISS_COOLDOWN_HOURS * 3600 * 1000
-    ).toISOString();
-    const { data: recentDismiss } = await sb
-      .from("guardian_events")
-      .select("id")
-      .eq("user_id", auth.user.id)
-      .eq("outcome", "dismissed")
-      .gte("created_at", cooldownSince)
-      .limit(1)
-      .maybeSingle();
-    const suppressed = !!recentDismiss;
+    // ข้อยกเว้นเดียว (Robustness matrix R): สัญญาณ 'simulated' บน build ที่เปิด
+    // sim gate — ไว้ซ้อมคิวซ้ำได้; สัญญาณ 'sensor' จริงติด cooldown เต็มรูปแบบเสมอ
+    const simOverride = body.source === "simulated" && env.guardianSimEnabled;
+    let suppressed = false;
+    if (!simOverride) {
+      const cooldownSince = new Date(
+        Date.now() - DISMISS_COOLDOWN_HOURS * 3600 * 1000
+      ).toISOString();
+      const { data: recentDismiss } = await sb
+        .from("guardian_events")
+        .select("id")
+        .eq("user_id", auth.user.id)
+        .eq("outcome", "dismissed")
+        .gte("created_at", cooldownSince)
+        .limit(1)
+        .maybeSingle();
+      suppressed = !!recentDismiss;
+    }
 
     const { data, error } = await sb
       .from("guardian_events")

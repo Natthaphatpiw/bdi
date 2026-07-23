@@ -9,6 +9,9 @@ export function allowRequest(
   scope: string,
   options: { limit?: number; windowMs?: number } = {},
 ): boolean {
+  // dev/test เท่านั้น: demo-coverage runner ยิงหลายสิบ fixture ติดกันจาก
+  // localhost — เปิดผ่าน env ของ process ที่ runner สตาร์ทเอง ไม่มีผล production
+  if (process.env.RATE_LIMIT_DISABLED === "1" && process.env.NODE_ENV !== "production") return true;
   const now = Date.now();
   const limit = options.limit ?? 20;
   const windowMs = options.windowMs ?? 60_000;
