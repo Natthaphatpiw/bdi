@@ -33,5 +33,11 @@
 - ระหว่างวนเทสพบและแก้ bug production จริง 3 ตัว: (1) `coverage_basis` map "อาชีพอิสระ/ไม่ได้ส่งประกันสังคม" เป็น SSS ผิดเพราะ substring (2) prescreen `detectRedFlags` over-triage จาก token เดี่ยว ("กราม"→หัวใจขาดเลือด, "ปวดท้อง"→DKA, "มีไข้"→ติดเชื้อในข้อ) — แก้เป็น strong-phrase/2-token rule พร้อม unit test กัน regression (3) MvpStore expiry ใช้นาฬิกาจริงชน test ที่ปักเวลาอดีต
 - **หมายเหตุเวลา:** p95 full-turn (non-streaming, dev เครื่องทีม) ~18.6s — ตัวเลขนี้รวม LLM หลายชั้นแบบไม่ streaming; ประสบการณ์จริงผู้ใช้เห็น first-byte ผ่าน streaming เร็วกว่ามาก (<3s เป้า) วัดมือตาม QA-CHECKLIST ข้อ 5 และควร prewarm ก่อนคิวพิช
 
-## 8. Booth demo corner
+## 8. Case Passport Variants (ภาคเสริม 4) — ณ 2026-07-24
+- **ผ่านแล้ว:** unit 111/111 (รวม variant/วงเงิน/guardrail) · scenario passport 5/5 (100%) · sample staff view 3 persona ตรวจตาจริงแล้ว
+- **ต้อง apply migration ก่อนใช้ QR จริง:** `supabase/migrations/202607240001_passport_tokens.sql` (ตาราง `shared_passports` + `passport_tokens`) — ยังไม่ได้ apply กับ DB; ปุ่ม "QR เจ้าหน้าที่" จะ error จนกว่าจะรัน `supabase db push`
+- **เพดานทันตกรรม:** อ่านจากข้อความสิทธิประโยชน์ใน KG (`BEN_SSS_SICKNESS`) ด้วย pattern "ทำฟันได้วงเงิน N บาทต่อปี" — ถ้าแก้ข้อความใน KG ให้คงรูปประโยคนี้ไว้ (มี unit test เตือนถ้าพัง) และตัวเลขจะเปลี่ยนตาม KG อัตโนมัติ
+- **การพิมพ์ 1 หน้า A4:** บังคับด้วย print stylesheet — ยืนยันบนเครื่องพิมพ์จริงตาม QA-CHECKLIST ข้อ 27
+
+## 9. Booth demo corner
 - `/demo`, `/liff/demo` เป็นเครื่องมือบูทที่จงใจคงไว้แบบไม่มีลิงก์จาก UI หลัก (auth bypass เฉพาะ path นั้น) — ไม่กระทบผู้ใช้จริง และ static sweep ยกเว้นโฟลเดอร์นี้อย่างประกาศชัด

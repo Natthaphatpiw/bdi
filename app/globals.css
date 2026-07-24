@@ -109,4 +109,27 @@ body {
   .passport-section {
     break-inside: avoid;
   }
+
+  /* Case Passport variants — พิมพ์เฉพาะตัวใบ (ใช้ได้ทั้งใน modal และ staff view)
+     บังคับ 1 หน้า A4: ตัด chrome ทั้งหมด เหลือเอกสาร */
+  body:has(.print-area) *:not(.print-area):not(.print-area *) {
+    visibility: hidden;
+  }
+  body:has(.print-area) .print-area,
+  body:has(.print-area) .print-area * {
+    visibility: visible;
+  }
+  body:has(.print-area) .print-area {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    margin: 0;
+  }
+  .print-area > div {
+    max-width: 100% !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    break-inside: avoid;
+  }
 }

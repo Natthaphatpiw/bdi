@@ -118,6 +118,10 @@ function runStaticChecks(fixtures: Fixture[]): void {
       }
     }
     if (autoDial.test(content)) staticFailures.push(`auto-dial pattern ใน ${rel}`);
+    // ภาคเสริม 4 §8.11 — เพดาน/วงเงินทันตกรรมต้องมาจาก KG ไม่ใช่ hardcode ใน UI
+    if (rel.startsWith("components/") && /วงเงิน[^\n"]{0,25}\d{3,}|\d{3,}\s*บาทต่อปี/.test(content)) {
+      staticFailures.push(`ตัวเลขวงเงินฝังใน UI: ${rel}`);
+    }
     if (isDemoCorner(rel)) continue;
     content.split("\n").forEach((line, i) => {
       const trimmed = line.trim();
@@ -429,6 +433,84 @@ function buildInput(
   return { type: "text", text: turn.user ?? "" };
 }
 
+// kind 'passport' — เดิน turns เพื่อสร้างเคสจริง แล้วยิง /api/passport ตรวจ variant
+async function runPassportFixture(f: Fixture): Promise<CheckResult> {
+  const r: CheckResult = { id: f.id, category: f.category, pass: true, reasons: [], turnMs: [] };
+  try {
+    const session = await api<{ session_id: string }>("/api/session", { channel: "web" });
+    const sessionId = session.json.session_id;
+    if (!sessionId) throw new Error(`สร้าง session ไม่ได้ (${session.status})`);
+
+    let last: TurnResponseLite = {};
+    for (const turn of f.turns) {
+      if (!turn.user && !last.questions?.length) break;
+      const res = await api<TurnResponseLite>("/api/turn", {
+        session_id: sessionId,
+        input: buildInput(turn, last, f.expect.slotsEqual),
+      });
+      r.turnMs.push(res.ms);
+      last = res.json;
+      if (res.status >= 500) throw new Error(`turn ${res.status}`);
+    }
+
+    const spec = f.passport ?? {};
+    const call = (extra?: Record<string, string>) =>
+      api<{ status: string; missing?: { field: string }[]; passport?: Record<string, unknown> }>(
+        "/api/passport",
+        { session_id: sessionId, audience: spec.audience, extra }
+      );
+
+    // ทดสอบคำถาม need_info: รอบแรกยิงโดย "ไม่ส่ง" field ที่คาดว่าจะถูกถาม
+    const firstExtra = spec.expectNeedInfoField
+      ? Object.fromEntries(
+          Object.entries(spec.extra ?? {}).filter(([k]) => k !== spec.expectNeedInfoField)
+        )
+      : spec.extra;
+    let res = await call(Object.keys(firstExtra ?? {}).length ? firstExtra : undefined);
+    r.turnMs.push(res.ms);
+    if (spec.expectNeedInfoField) {
+      if (res.json.status !== "need_info" || !res.json.missing?.some((m) => m.field === spec.expectNeedInfoField)) {
+        r.reasons.push(`คาด need_info field ${spec.expectNeedInfoField} ได้ ${res.json.status}`);
+      } else {
+        res = await call(spec.extra);
+        r.turnMs.push(res.ms);
+      }
+    }
+    // ถ้ายัง need_info (agent ขอข้อมูลทั่วไป) — ตอบด้วย slotsEqual persona แล้วลองอีกรอบ
+    if (res.json.status === "need_info") {
+      const fill: Record<string, string> = { ...(spec.extra ?? {}) };
+      for (const m of res.json.missing ?? []) {
+        const persona = f.expect.slotsEqual?.[m.field];
+        fill[m.field] = fill[m.field] ?? (persona != null ? String(persona) : "ไม่แน่ใจ");
+      }
+      res = await call(fill);
+      r.turnMs.push(res.ms);
+    }
+    if (res.json.status !== "ready" || !res.json.passport) {
+      r.reasons.push(`passport ไม่ ready (${res.json.status})`);
+    } else {
+      const p = res.json.passport as { audience?: string; available_audiences?: string[] };
+      const text = JSON.stringify(res.json.passport);
+      if (spec.expectAudience && p.audience !== spec.expectAudience)
+        r.reasons.push(`audience คาด ${spec.expectAudience} ได้ ${p.audience}`);
+      for (const excluded of spec.availableMustExclude ?? []) {
+        if (p.available_audiences?.includes(excluded))
+          r.reasons.push(`available_audiences ต้องไม่มี ${excluded}`);
+      }
+      for (const m of spec.mustMatch ?? []) {
+        if (!new RegExp(m, "i").test(text)) r.reasons.push(`passport mustMatch ไม่พบ: ${m}`);
+      }
+      for (const m of spec.mustNotMatch ?? []) {
+        if (new RegExp(m, "i").test(text)) r.reasons.push(`passport mustNotMatch เจอ: ${m}`);
+      }
+    }
+  } catch (e) {
+    r.reasons.push(`error: ${(e as Error).message}`);
+  }
+  r.pass = r.reasons.length === 0;
+  return r;
+}
+
 async function runGuardianFixture(f: Fixture): Promise<CheckResult> {
   const r: CheckResult = { id: f.id, category: f.category, pass: true, reasons: [], turnMs: [] };
   const simEnabled = process.env.NEXT_PUBLIC_GUARDIAN_SIM === "1";
@@ -523,7 +605,7 @@ function writeReport(scenarioRan: boolean): { ok: boolean; summary: string } {
     const pct = rs.length ? Math.round((passed / rs.length) * 100) : 100;
     lines.push(`| ${cat} | ${passed} | ${rs.length} | ${pct}% |`);
     catRates.push(`${cat} ${pct}%`);
-    const threshold = cat === "golden" || cat === "safety" ? 100 : 95;
+    const threshold = cat === "golden" || cat === "safety" || cat === "passport" ? 100 : 95;
     if (scenarioRan && pct < threshold) ok = false;
   }
   if (!scenarioRan) lines.push("| (scenario ถูกข้าม) | – | – | – |");
@@ -581,7 +663,12 @@ async function main(): Promise<void> {
       // golden ก่อน (paraphrase ต้องเทียบ facilityTop1 กับ golden)
       toRun.sort((a, b) => (a.category === "golden" ? -1 : 0) - (b.category === "golden" ? -1 : 0));
       for (const f of toRun) {
-        const r = f.kind === "guardian" ? await runGuardianFixture(f) : await runTurnFixture(f);
+        const r =
+          f.kind === "guardian"
+            ? await runGuardianFixture(f)
+            : f.kind === "passport"
+              ? await runPassportFixture(f)
+              : await runTurnFixture(f);
         results.push(r);
         console.log(`  ${r.pass ? "✅" : "❌"} ${f.id}${r.pass ? "" : ` — ${r.reasons[0]}`}`);
       }

@@ -326,6 +326,44 @@ export interface SessionResponse {
 }
 
 // ---- Case Passport ----
+/** ผู้รับเอกสาร — variant คือ "มุมมอง" ต่อเคสเดียวกัน ไม่ fork logic สิทธิ์ */
+export type PassportAudience = "general" | "pharmacy" | "primary_care" | "dental" | "er";
+
+export interface PassportCitation {
+  title: string;
+  url: string;
+  publisher?: string;
+}
+
+/** บล็อกเฉพาะ variant — ทุกค่าถูก "เลือก/จัดเรียง" จาก rule engine + KG เท่านั้น */
+export interface PassportVariantBlocks {
+  /** 7.2 — พิมพ์ได้เฉพาะเมื่อ safety gate + prescreen ของเคสเป็นลบทั้งหมดจริง */
+  safety_check?: { negative: true; checked_at: string };
+  /** 4.1 ร้านยา — สถานะโครงการเจ็บป่วยเล็กน้อย */
+  pharmacy_program?: {
+    in_program: boolean;
+    scheme_ok: boolean;
+    matched: string[];
+    /** copy ที่จะแสดง (7.4 หรือ ชำระเอง/สอบถามร้าน) */
+    banner: string;
+  };
+  /** 4.2 คลินิกอบอุ่น/ปฐมภูมิ */
+  primary_care?: {
+    mechanism_title: string; // 7.5 "การใช้สิทธิ์ครั้งนี้"
+    mechanism_body: string;
+    chronic_rows: { label: string; value: string }[];
+    services_title: string; // 7.5 "บริการที่พึงได้ตามช่วงวัยและภาวะ"
+    services: string[];
+  };
+  /** 4.3 ทันตกรรม ปกส./สิทธิ์อื่น */
+  dental?: {
+    allowance_line?: string; // 7.3 (มีเฉพาะสิทธิ์ที่มีเพดานรายปีใน KG)
+    approx: true;
+    claim_conditions: string[];
+    documents: string[];
+  };
+}
+
 /** ER Passport (Guardian Emergency Mode) — ข้อมูลวิกฤตที่พยาบาลคัดกรองต้องเห็นก่อน */
 export interface PassportEmergencyData {
   symptom?: string;
@@ -367,6 +405,13 @@ export interface PassportData {
   };
   /** Guardian Emergency Mode — ส่วนข้อมูลวิกฤตของ ER Passport */
   emergency?: PassportEmergencyData;
+  /** Variant system (ภาคเสริม 4): มุมมองผู้รับ + บล็อกเฉพาะทาง */
+  audience?: PassportAudience;
+  /** ตัวเลือกที่อนุญาตสำหรับเคสนี้ — pharmacy หายไปเมื่อมี red flag (ไม่ใช่ disabled) */
+  available_audiences?: PassportAudience[];
+  variant?: PassportVariantBlocks;
+  /** citations ประกอบสิทธิ์/วงเงินของ variant (ชื่อประกาศ + ผู้เผยแพร่) */
+  citations?: PassportCitation[];
   /** the actual triage result from the 27B prescreen (pulled from audit_log) */
   screening?: {
     condition_th?: string;

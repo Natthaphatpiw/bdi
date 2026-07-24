@@ -16,6 +16,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import type { PassportData } from "@/lib/types";
+import { AUDIENCE_LABELS, RESPONSIBILITY_BOX } from "@/lib/passportVariants";
 
 function fmtDate(iso: string): string {
   try {
@@ -46,8 +47,11 @@ function Section({
   );
 }
 
-export const PassportCard = forwardRef<HTMLDivElement, { data: PassportData }>(
-  function PassportCard({ data }, ref) {
+export const PassportCard = forwardRef<
+  HTMLDivElement,
+  { data: PassportData; sampleFooter?: boolean; samplePrintOnly?: boolean }
+>(
+  function PassportCard({ data, sampleFooter = false, samplePrintOnly = false }, ref) {
     const p = data.patient;
     const chips = [
       p.role,
@@ -56,6 +60,7 @@ export const PassportCard = forwardRef<HTMLDivElement, { data: PassportData }>(
       p.scheme,
       p.area,
     ].filter(Boolean) as string[];
+    const v = data.variant;
 
     return (
       <div
@@ -92,6 +97,16 @@ export const PassportCard = forwardRef<HTMLDivElement, { data: PassportData }>(
         </div>
 
         <div className="px-4 pb-4 pt-2">
+          {/* audience + กล่องเส้นแบ่งความรับผิดชอบ (§7.1 — ต้องเจอใน 3 วินาทีแรก) */}
+          {data.audience && data.audience !== "general" && (
+            <p className="mb-1.5 inline-flex rounded-full bg-brand-soft px-2.5 py-0.5 text-[11px] font-semibold text-brand-dark">
+              สำหรับ: {AUDIENCE_LABELS[data.audience]}
+            </p>
+          )}
+          <div className="mb-2 rounded-btn border-2 border-ink/20 bg-canvas px-3 py-2">
+            <p className="text-[11px] font-semibold leading-snug text-ink">{RESPONSIBILITY_BOX}</p>
+          </div>
+
           {/* ER critical block — ข้อมูลวิกฤตอยู่บนสุด อ่านจบใน 15 วินาที */}
           {data.emergency && (
             <div className="mb-1 rounded-btn border border-safety/40 bg-safety-soft px-3 py-2.5">
@@ -222,6 +237,86 @@ export const PassportCard = forwardRef<HTMLDivElement, { data: PassportData }>(
             </Section>
           )}
 
+          {/* 7.2 — บรรทัดสัญญาณอันตราย (ลบ) — พิมพ์เฉพาะเมื่อผ่านจริง */}
+          {v?.safety_check?.negative && (
+            <p className="mt-2 rounded-btn bg-rights-soft px-3 py-1.5 text-[12px] font-medium text-rights">
+              ตรวจสัญญาณอันตรายเบื้องต้นแล้ว: ไม่พบ ({fmtDate(v.safety_check.checked_at)})
+            </p>
+          )}
+
+          {/* 4.1 — แถบสถานะโครงการร้านยา */}
+          {v?.pharmacy_program && (
+            <div
+              className={
+                v.pharmacy_program.in_program
+                  ? "mt-2 rounded-btn bg-rights-soft px-3 py-2 text-[12px] font-semibold text-rights"
+                  : "mt-2 rounded-btn bg-canvas px-3 py-2 text-[12px] font-medium text-ink-soft"
+              }
+            >
+              {v.pharmacy_program.banner}
+              {v.pharmacy_program.in_program && v.pharmacy_program.matched.length > 0 && (
+                <span className="mt-0.5 block text-[11px] font-normal text-ink-soft">
+                  กลุ่มอาการที่เข้าเกณฑ์: {v.pharmacy_program.matched.slice(0, 3).join(", ")}
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* 4.2 — คลินิกอบอุ่น/ปฐมภูมิ */}
+          {v?.primary_care && (
+            <div className="mt-3">
+              <div className="rounded-btn bg-brand-soft px-3 py-2.5">
+                <p className="text-[12px] font-semibold text-brand-dark">
+                  {v.primary_care.mechanism_title}
+                </p>
+                <p className="mt-0.5 text-[12px] leading-relaxed text-ink">
+                  {v.primary_care.mechanism_body}
+                </p>
+              </div>
+              <table className="mt-2 w-full text-[12px]">
+                <tbody>
+                  {v.primary_care.chronic_rows.map((row) => (
+                    <tr key={row.label}>
+                      <td className="py-0.5 pr-2 align-top text-ink-muted">{row.label}</td>
+                      <td className="py-0.5 font-medium text-ink">{row.value}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {v.primary_care.services.length > 0 && (
+                <div className="mt-2 rounded-btn bg-canvas px-3 py-2">
+                  <p className="text-[12px] font-semibold text-ink">{v.primary_care.services_title}</p>
+                  <ul className="ml-1 mt-0.5 list-inside list-disc space-y-0.5 text-[12px] text-ink-soft">
+                    {v.primary_care.services.map((s) => (
+                      <li key={s}>{s}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* 4.3 — ทันตกรรม: วงเงิน (โดยประมาณ) + เงื่อนไขเบิก */}
+          {v?.dental && (
+            <div className="mt-3 rounded-btn bg-benefit-soft px-3 py-2.5">
+              {v.dental.allowance_line && (
+                <p className="text-[13px] font-bold leading-snug text-benefit">
+                  {v.dental.allowance_line}
+                </p>
+              )}
+              {v.dental.claim_conditions.length > 0 && (
+                <ul className="mt-1.5 ml-1 list-inside list-disc space-y-0.5 text-[11px] leading-relaxed text-ink-soft">
+                  {v.dental.claim_conditions.map((c, i) => (
+                    <li key={i}>{c}</li>
+                  ))}
+                </ul>
+              )}
+              <p className="mt-1 text-[11px] text-ink-muted">
+                เอกสารที่ต้องเตรียม: {v.dental.documents.join(" · ")}
+              </p>
+            </div>
+          )}
+
           {/* rights */}
           {data.rights_summary.length > 0 && (
             <Section icon={<BadgeCheck className="h-4 w-4" aria-hidden="true" />} title="สิทธิ์ที่ครอบคลุม">
@@ -311,7 +406,34 @@ export const PassportCard = forwardRef<HTMLDivElement, { data: PassportData }>(
             </div>
           )}
 
+          {/* แหล่งอ้างอิงสิทธิ์/วงเงิน — บนใบกระดาษเท่ากับ staff view เสมอ */}
+          {data.citations && data.citations.length > 0 && (
+            <div className="mt-3 border-t border-hairline pt-2">
+              <p className="text-[10px] font-semibold text-ink-muted">ประกาศอ้างอิง</p>
+              <ul className="mt-0.5 space-y-0.5">
+                {data.citations.map((c, i) => (
+                  <li key={i} className="text-[10px] leading-snug text-ink-muted">
+                    {c.title}
+                    {c.publisher ? ` — ${c.publisher}` : ""}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           <p className="mt-3 text-[10px] leading-snug text-ink-muted">{data.disclaimer}</p>
+
+          {sampleFooter && (
+            <p
+              className={
+                samplePrintOnly
+                  ? "mt-2 hidden border-t border-hairline pt-2 text-center text-[10px] font-medium text-ink-muted print:block"
+                  : "mt-2 border-t border-hairline pt-2 text-center text-[10px] font-medium text-ink-muted"
+              }
+            >
+              เอกสารตัวอย่าง · ข้อมูลสมมติเพื่อการนำเสนอ
+            </p>
+          )}
         </div>
       </div>
     );

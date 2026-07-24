@@ -188,13 +188,32 @@ export function searchFacilities(params: {
 // ---- Case Passport ----------------------------------------------------------
 export function generatePassport(
   sessionId: string,
-  extra?: Record<string, string>
+  extra?: Record<string, string>,
+  audience?: import("../types").PassportAudience
 ): Promise<PassportResult> {
   return jsonFetch("/api/passport", {
     method: "POST",
-    body: JSON.stringify({ session_id: sessionId, extra }),
+    body: JSON.stringify({ session_id: sessionId, extra, ...(audience ? { audience } : {}) }),
   });
 }
+
+/** QR สำหรับเจ้าหน้าที่ — raw token คืนครั้งเดียว (server เก็บเฉพาะ hash) */
+export function createPassportShareToken(
+  sessionId: string | null,
+  passport: import("../types").PassportData,
+  audience?: import("../types").PassportAudience
+): Promise<{ token: string; token_id: string; expires_at: string; url: string }> {
+  return jsonFetch("/api/passport/token", {
+    method: "POST",
+    body: JSON.stringify({ session_id: sessionId, passport, audience }),
+  });
+}
+
+export const revokePassportShareToken = (tokenId: string) =>
+  jsonFetch<{ revoked: boolean }>("/api/passport/token", {
+    method: "POST",
+    body: JSON.stringify({ revoke_token_id: tokenId }),
+  });
 
 // ---- case result dashboard ---------------------------------------------------
 export const getCase = (sessionId: string) =>

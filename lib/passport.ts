@@ -7,12 +7,20 @@ import { casePassportAgent, CASE_PASSPORT_INSTRUCTIONS } from "@/mastra/agents/c
 import { llmJson } from "./llm";
 import { deptThai, severityThai, conditionThaiFor } from "./triageLabels";
 import { computeValueUnlock } from "./valueUnlock";
+import { searchFacilities } from "./kg";
+import {
+  availableAudiences,
+  buildVariantBlocks,
+  decideAudience,
+} from "./passportVariants";
 import type {
   Card,
+  PassportAudience,
   PassportData,
   PassportEmergencyData,
   PassportResult,
   PrescreenResult,
+  Scheme,
   Understood,
 } from "./types";
 
@@ -279,21 +287,29 @@ export async function buildEmergencyPassport(
           input.onset ? ` (เริ่มอาการ: ${input.onset})` : ""
         } — ข้อมูลนี้ให้แพทย์ใช้ประเมินภาวะหลอดเลือดสมองต่อไป`
       : undefined,
+    audience: "er",
+    available_audiences: availableAudiences(true),
     disclaimer: DISCLAIMER,
   };
   return { status: "ready", passport };
 }
 
+export interface BuildPassportOptions {
+  /** ผู้ใช้เลือกปลายทางเองจาก dropdown "เตรียมไปที่ไหน" */
+  audience?: PassportAudience;
+}
+
 export async function buildPassport(
   sb: SupabaseClient,
   sessionId: string,
-  extra?: Record<string, string>
+  extra?: Record<string, string>,
+  opts?: BuildPassportOptions
 ): Promise<PassportResult> {
   // ---- load session context (short-term memory) ----
   const [{ data: msgs }, { data: state }, { data: prof }, { data: audits }] = await Promise.all([
     sb.from("messages").select("role, content").eq("session_id", sessionId).order("created_at", { ascending: true }).limit(80),
     sb.from("session_state").select("slots").eq("session_id", sessionId).maybeSingle(),
-    sb.from("profiles").select("birth_year, scheme, area_code, sss_section, receives_state_pension").maybeSingle(),
+    sb.from("profiles").select("birth_year, scheme, area_code, sss_section, receives_state_pension, conditions_meds").maybeSingle(),
     sb
       .from("audit_log")
       .select("prescreen_result, created_at")
@@ -307,12 +323,17 @@ export async function buildPassport(
   const prescreen = (audits?.[0]?.prescreen_result ?? null) as PrescreenResult | null;
 
   const transcript: string[] = [];
+  let hadEmergencyCard = false;
   for (const m of msgs ?? []) {
     const content = (m.content as string) ?? "";
     if (m.role === "user") transcript.push(`ผู้ใช้: ${content}`);
     else if (m.role === "assistant" && content.trim().startsWith("[")) {
       try {
-        transcript.push(...cardsToSummary(JSON.parse(content) as Card[]));
+        const parsedCards = JSON.parse(content) as Card[];
+        if (parsedCards.some((c) => c.type === "safety" && c.level === "emergency")) {
+          hadEmergencyCard = true;
+        }
+        transcript.push(...cardsToSummary(parsedCards));
       } catch {
         /* skip */
       }
@@ -442,6 +463,72 @@ export async function buildPassport(
     : undefined;
   const finalScheme = mapScheme(slots.scheme ?? out.passport?.patient?.scheme ?? prof?.scheme);
 
+  // ---- variant system (ภาคเสริม 4): เลือกมุมมองผู้รับแบบ deterministic --------
+  const hasRedFlag =
+    hadEmergencyCard || (prescreen?.red_flags?.length ?? 0) > 0 || !!prescreen?.escalate_hotline;
+  const allowed = availableAudiences(hasRedFlag);
+
+  let facilityTop1Level: string | undefined;
+  try {
+    if (finalScheme) {
+      const [top1] = await searchFacilities({
+        scheme: finalScheme as Scheme,
+        area: (slots.area as string | undefined) ?? prof?.area_code ?? undefined,
+        limit: 1,
+      });
+      facilityTop1Level = top1?.level;
+    }
+  } catch {
+    /* facility router ล่ม → ตกไป general ตามเดิม */
+  }
+
+  const decided = decideAudience({
+    facilityTop1Level,
+    symptoms: (slots.symptoms as string[] | undefined) ?? out.passport.symptoms ?? [],
+    conditionHint: (slots.condition_hint as string | undefined) ?? out.passport.condition,
+    hasRedFlag,
+  });
+  // Guardrail §6.1 (server-side): audience ที่ขอมาต้องอยู่ในรายการที่อนุญาต —
+  // pharmacy + red flag ไม่มีทางออกจากชั้นนี้ได้
+  const requested = opts?.audience && allowed.includes(opts.audience) ? opts.audience : undefined;
+  const audience = requested ?? (allowed.includes(decided) ? decided : "general");
+
+  // ทันตกรรม: ถาม 1 คำถามก่อนออกใบ (วงเงินที่ใช้ไปปีนี้) — ใช้กลไก need_info เดิม
+  if (audience === "dental" && !extra?.dental_used_this_year) {
+    return {
+      status: "need_info",
+      missing: [
+        {
+          field: "dental_used_this_year",
+          label: "การใช้สิทธิ์ทำฟันปีนี้",
+          question:
+            'ปีนี้เคยใช้สิทธิ์ทำฟันไปแล้วประมาณเท่าไหร่ — พิมพ์จำนวนเงิน (บาท) หรือพิมพ์ว่า "ยังไม่เคยใช้" / "ไม่แน่ใจ"',
+          type: "text",
+        },
+      ],
+    };
+  }
+
+  const variantResult = buildVariantBlocks({
+    audience,
+    slots,
+    scheme: (finalScheme as Scheme | undefined) ?? undefined,
+    prescreen,
+    safetyGateNegative: !hadEmergencyCard,
+    conditionsMeds: (prof?.conditions_meds as string | undefined) ?? undefined,
+    valueUnlock: computeValueUnlock(
+      {
+        age:
+          out.passport?.patient?.age ??
+          (slots.age as number | undefined) ??
+          (typeof prof?.birth_year === "number" ? CURRENT_YEAR - prof.birth_year : undefined),
+        scheme: finalScheme,
+      },
+      passportAttrs(slots, prof)
+    ),
+    dentalUsedThisYear: extra?.dental_used_this_year,
+  });
+
   // ---- assemble the final passport (server adds ref/date/hotlines/disclaimer) ----
   const passport: PassportData = {
     ...out.passport,
@@ -474,9 +561,24 @@ export async function buildPassport(
           ? []
           : [{ number: "1330", name: "สายด่วน สปสช." }]),
     ],
+    audience,
+    available_audiences: allowed,
+    variant: variantResult.blocks,
+    citations: dedupePassportCitations(variantResult.citations),
     disclaimer: DISCLAIMER,
   };
   return { status: "ready", passport };
+}
+
+function dedupePassportCitations(
+  cs: { title: string; url: string; publisher?: string }[]
+): { title: string; url: string; publisher?: string }[] {
+  const seen = new Set<string>();
+  return cs.filter((c) => {
+    if (!c.url || seen.has(c.url)) return false;
+    seen.add(c.url);
+    return true;
+  });
 }
 
 // Thai scheme label → code (the passport agent may echo a Thai label)

@@ -1,0 +1,180 @@
+[
+  {
+    "id": "pass-dental-sss",
+    "category": "passport",
+    "kind": "passport",
+    "turns": [
+      {
+        "user": "ฉันอายุ 34 เป็นพนักงานบริษัท ประกันสังคม ม.33 ปวดฟันกรามมาสามวัน อยู่ลาดพร้าว ใช้สิทธิ์ทำฟันได้ไหม"
+      },
+      {
+        "answers": {
+          "sss_months": "เกิน 3 เดือน",
+          "pension": "ไม่แน่ใจ"
+        }
+      },
+      {
+        "answers": {}
+      }
+    ],
+    "passport": {
+      "audience": "dental",
+      "extra": {
+        "dental_used_this_year": "ยังไม่เคยใช้"
+      },
+      "expectNeedInfoField": "dental_used_this_year",
+      "expectAudience": "dental",
+      "mustMatch": [
+        "คงเหลือโดยประมาณ",
+        "ยืนยันยอดจริง",
+        "sso\\.go\\.th"
+      ],
+      "mustNotMatch": [
+        "โหมดสาธิต"
+      ]
+    },
+    "expect": {
+      "finalRoute": "cards",
+      "slotsEqual": {
+        "age": 34,
+        "scheme": "SSS",
+        "area": "ลาดพร้าว"
+      }
+    },
+    "note": "acceptance 1 — dental variant: ถามวงเงินก่อน + กล่องวงเงินโดยประมาณ + citation"
+  },
+  {
+    "id": "pass-pharmacy-ucs",
+    "category": "passport",
+    "kind": "passport",
+    "turns": [
+      {
+        "user": "ผมอายุ 28 มีไข้ต่ำ ๆ เจ็บคอ คัดจมูกตั้งแต่เมื่อคืน อยู่บางนา ใช้บัตรทอง"
+      },
+      {
+        "answers": {}
+      },
+      {
+        "answers": {}
+      }
+    ],
+    "passport": {
+      "audience": "pharmacy",
+      "expectAudience": "pharmacy",
+      "mustMatch": [
+        "อาการเข้าข่ายโครงการเจ็บป่วยเล็กน้อย รับยาที่ร้านยาคุณภาพตามสิทธิบัตรทอง",
+        "\"safety_check\"",
+        "\"negative\":\\s*true"
+      ],
+      "mustNotMatch": [
+        "ชำระเอง หรือสอบถาม"
+      ]
+    },
+    "expect": {
+      "finalRoute": "cards",
+      "slotsEqual": {
+        "age": 28,
+        "scheme": "UCS",
+        "area": "บางนา"
+      }
+    },
+    "note": "acceptance 2 — pharmacy variant + safety_check (บรรทัด 7.2 ประกอบใน UI จาก structure นี้ — ยืนยันใน unit test + sample view) + แถบ 7.4"
+  },
+  {
+    "id": "pass-pharmacy-redflag-blocked",
+    "category": "passport",
+    "kind": "passport",
+    "turns": [
+      {
+        "user": "ผมอายุ 28 มีไข้ เจ็บคอ และแน่นหน้าอกด้วย อยู่บางนา ใช้บัตรทอง"
+      }
+    ],
+    "passport": {
+      "audience": "pharmacy",
+      "availableMustExclude": [
+        "pharmacy"
+      ],
+      "mustNotMatch": [
+        "อาการเข้าข่ายโครงการเจ็บป่วยเล็กน้อย"
+      ]
+    },
+    "expect": {
+      "finalRoute": "emergency"
+    },
+    "note": "acceptance 3 — เพิ่มแน่นหน้าอก: เข้า escalation และ pharmacy หายจากรายการแม้ client ขอมาตรง ๆ"
+  },
+  {
+    "id": "pass-pharmacy-out-of-list",
+    "category": "passport",
+    "kind": "passport",
+    "turns": [
+      {
+        "user": "อายุ 38 ชาปลายนิ้วมือสองข้างเป็น ๆ หาย ๆ มาสองสัปดาห์ อยู่ลาดพร้าว ใช้บัตรทอง"
+      },
+      {
+        "answers": {}
+      },
+      {
+        "answers": {}
+      }
+    ],
+    "passport": {
+      "audience": "pharmacy",
+      "expectAudience": "pharmacy",
+      "mustMatch": [
+        "ชำระเอง หรือสอบถาม"
+      ],
+      "mustNotMatch": [
+        "อาการเข้าข่ายโครงการเจ็บป่วยเล็กน้อย"
+      ]
+    },
+    "expect": {
+      "finalRoute": "cards",
+      "slotsEqual": {
+        "age": 38,
+        "scheme": "UCS"
+      }
+    },
+    "note": "acceptance 4 — อาการนอกลิสต์ 32: ไม่มีแถบโครงการ แสดงชำระเอง/สอบถามตามจริง"
+  },
+  {
+    "id": "pass-primary-golden-a",
+    "category": "passport",
+    "kind": "passport",
+    "turns": [
+      {
+        "user": "แม่ผมอายุ 62 เป็นเบาหวาน สิทธิบัตรทองอยู่ขอนแก่น มาอยู่บางนากับผม ช่วงนี้เพลีย ตาพร่ามัว"
+      },
+      {
+        "answers": {
+          "pension": "ไม่ได้รับ"
+        }
+      },
+      {
+        "answers": {
+          "pension": "ไม่ได้รับ"
+        }
+      }
+    ],
+    "passport": {
+      "expectAudience": "primary_care",
+      "mustMatch": [
+        "การใช้สิทธิ์ครั้งนี้",
+        "บริการที่พึงได้ตามช่วงวัยและภาวะ",
+        "30 บาทรักษาทุกที่"
+      ],
+      "mustNotMatch": [
+        "โหมดสาธิต"
+      ]
+    },
+    "expect": {
+      "finalRoute": "cards",
+      "slotsEqual": {
+        "age": 62,
+        "scheme": "UCS",
+        "area": "บางนา"
+      }
+    },
+    "note": "acceptance 5 — Golden A ได้ primary_care variant + กล่อง 30บาททุกที่ + บริการตามวัยจาก value_unlock"
+  }
+]

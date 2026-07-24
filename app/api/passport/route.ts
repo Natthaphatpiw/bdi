@@ -21,6 +21,8 @@ export async function POST(req: NextRequest) {
     extra?: Record<string, string>;
     mode?: "emergency";
     emergency?: EmergencyPassportInput;
+    /** variant "เตรียมไปที่ไหน" — server ตรวจซ้ำกับ available_audiences เสมอ */
+    audience?: import("@/lib/types").PassportAudience;
   };
   try {
     body = await req.json();
@@ -33,7 +35,9 @@ export async function POST(req: NextRequest) {
     const result =
       body.mode === "emergency"
         ? await buildEmergencyPassport(userClient(auth.token), body.session_id, body.emergency ?? {})
-        : await buildPassport(userClient(auth.token), body.session_id, body.extra);
+        : await buildPassport(userClient(auth.token), body.session_id, body.extra, {
+            audience: body.audience,
+          });
     return ok(result);
   } catch (e) {
     console.error("[passport]", (e as Error).message);

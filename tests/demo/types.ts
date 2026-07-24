@@ -2,7 +2,7 @@
 // หลักการ: assert ที่โครงสร้างและ invariant (slots / ชนิดการ์ด / เส้นทาง /
 // citation) — ไม่ assert ถ้อยคำจาก LLM ซึ่งเปลี่ยนได้ทุกครั้ง
 
-export type FixtureCategory = 'golden' | 'paraphrase' | 'matrix' | 'adversarial' | 'safety';
+export type FixtureCategory = 'golden' | 'paraphrase' | 'matrix' | 'adversarial' | 'safety' | 'passport';
 
 export interface FixtureTurn {
   /** ข้อความอิสระจากผู้ใช้ */
@@ -44,8 +44,19 @@ export interface FixtureExpect {
 export interface Fixture {
   id: string;
   category: FixtureCategory;
-  /** 'turn' (default) = ยิง /api/turn · 'guardian' = ลำดับ Guardian API */
-  kind?: 'turn' | 'guardian';
+  /** 'turn' (default) = /api/turn · 'guardian' = Guardian API · 'passport' = turns แล้วต่อด้วย /api/passport */
+  kind?: 'turn' | 'guardian' | 'passport';
+  /** เฉพาะ kind passport: คำขอ + ข้อคาดหวังต่อใบที่ได้ */
+  passport?: {
+    audience?: string;
+    extra?: Record<string, string>;
+    /** ต้องถามข้อมูลเพิ่ม field นี้ก่อน (เช่น dental_used_this_year) แล้ว runner ตอบด้วย extra */
+    expectNeedInfoField?: string;
+    expectAudience?: string;
+    availableMustExclude?: string[];
+    mustMatch?: string[];
+    mustNotMatch?: string[];
+  };
   /** เฉพาะ kind guardian: ลำดับ action */
   guardian?: {
     pattern: 'tremor' | 'drops' | 'fall';
